@@ -9,6 +9,11 @@
 
 </div>
 
+<div align="center">
+  <img src="appImage.png" alt="App Image" width="300"/>
+  <p>Screenshot of the extension in action</p>
+</div>
+
 ---
 
 ## ✨ Features
@@ -17,9 +22,8 @@
 - ➕ Automatically joins all saved subreddits on a new account
 - 🎨 Simple and easy-to-use popup interface
 - 🌐 Works with any Reddit account
-- 📤 Exports your saved subreddits to a JSON file and imports them on a new account
 
-## 📦 Installation
+## 📥 Installation
 
 ### Chrome Web Store (Recommended)
 1. Visit the [Chrome Web Store](chrome-store-link-here)
