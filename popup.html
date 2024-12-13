@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Reddit Copycat</title>
+  <style>
+    :root {
+      --primary-color: #ff4500;
+      --primary-hover: #ff5722;
+      --secondary-color: #1a1a1b;
+      --success-color: #4CAF50;
+      --error-color: #f44336;
+      --border-color: #edeff1;
+      --background-color: #ffffff;
+      --text-color: #1c1c1c;
+      --secondary-text: #7c7c7c;
+    }
+
+    body {
+      width: 350px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      margin: 0;
+      color: var(--text-color);
+      background: var(--background-color);
+    }
+
+    h2 {
+      margin: 0 0 16px 0;
+      font-size: 20px;
+      color: var(--primary-color);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      margin: 4px 0;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    button:hover:not(:disabled) {
+      background-color: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .button-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 8px 0;
+    }
+
+    .secondary-button {
+      background-color: var(--secondary-color);
+    }
+
+    .secondary-button:hover:not(:disabled) {
+      background-color: #2d2d2e;
+    }
+
+    .small-button {
+      font-size: 12px;
+      padding: 6px 10px;
+    }
+
+    .status {
+      margin-top: 8px;
+      padding: 10px;
+      border-radius: 4px;
+      display: none;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .success {
+      background-color: var(--success-color);
+      color: white;
+    }
+
+    .error {
+      background-color: var(--error-color);
+      color: white;
+    }
+
+    #subredditList {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 8px;
+      display: none;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: white;
+    }
+
+    #subredditList ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    #subredditList li {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background-color 0.2s;
+    }
+
+    #subredditList li:hover {
+      background-color: #f8f9fa;
+    }
+
+    #subredditList li:last-child {
+      border-bottom: none;
+    }
+
+    .sub-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .sub-name {
+      font-weight: 500;
+    }
+
+    .status-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+
+    .joined {
+      background-color: #e8f5e9;
+      color: var(--success-color);
+    }
+
+    .not-joined {
+      background-color: #ffebee;
+      color: var(--error-color);
+    }
+
+    .checkbox-wrapper {
+      display: flex;
+      align-items: center;
+    }
+
+    .checkbox-wrapper input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--primary-color);
+    }
+
+    .filter-container, .selection-controls {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 8px 0;
+      border: 1px solid var(--border-color);
+    }
+
+    .filter-container label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-color);
+    }
+
+    .stats {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--secondary-text);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .progress-container {
+      margin-top: 12px;
+      display: none;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background-color: #f0f0f0;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background-color: var(--success-color);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .progress-text {
+      text-align: center;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--secondary-text);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .selected-count {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--secondary-text);
+      text-align: center;
+    }
+
+    #importInput {
+      display: none;
+    }
+
+    #joinSelectedBtn {
+      display: none;
+      margin-top: 8px;
+      background-color: var(--success-color);
+    }
+
+    #joinSelectedBtn:hover:not(:disabled) {
+      background-color: #45a049;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+
+    .status.loading {
+      background-color: #fff3e0;
+      color: #e65100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .status.loading::before {
+      content: '';
+      width: 16px;
+      height: 16px;
+      border: 2px solid #e65100;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <h2>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" fill="currentColor"/>
+    </svg>
+    Reddit Copycat
+  </h2>
+
+  <div class="section">
+    <button id="saveSubreddits">Save Current Subreddits</button>
+    <button id="showSubreddits">Show Saved Subreddits</button>
+    <div class="button-group">
+      <button id="exportSubreddits" class="secondary-button">Export List</button>
+      <button id="importSubreddits" class="secondary-button">Import List</button>
+    </div>
+  </div>
+
+  <form id="importForm">
+    <input type="file" 
+           id="importInput" 
+           accept=".json" 
+           style="display: none;"
+           data-import-pending="false">
+  </form>
+
+  <div class="filter-container" style="display: none;">
+    <label>
+      <input type="checkbox" id="filterUnjoined">
+      Show only subreddits not joined
+    </label>
+    <div class="stats"></div>
+  </div>
+
+  <div class="selection-controls" style="display: none;">
+    <div class="controls">
+      <button id="selectAllBtn" class="secondary-button small-button">Select All</button>
+      <button id="deselectAllBtn" class="secondary-button small-button">Deselect All</button>
+      <button id="selectUnjoinedBtn" class="secondary-button small-button">Select Unjoined</button>
+    </div>
+    <div class="selected-count">Selected: 0 subreddits</div>
+  </div>
+
+  <button id="joinSelectedBtn">Join Selected Subreddits</button>
+  <button id="joinSavedSubreddits" class="secondary-button">Join All Saved Subreddits</button>
+
+  <div id="status" class="status"></div>
+  
+  <div id="subredditList">
+    <ul></ul>
+  </div>
+
+  <div class="progress-container">
+    <div class="progress-bar">
+      <div class="progress-fill"></div>
+    </div>
+    <div class="progress-text"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html> 
