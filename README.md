@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/[your-extension-id]?style=for-the-badge&logo=google-chrome&logoColor=white&label=Chrome%20Store)](chrome-store-link-here)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/dlbgdjjfgmdobjcjdlohjfgmkeljeegp?style=for-the-badge&logo=google-chrome&logoColor=white&label=Chrome%20Store)](https://chromewebstore.google.com/detail/reddit-copycat/dlbgdjjfgmdobjcjdlohjfgmkeljeegp?authuser=3&hl=en)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-%23FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/s4lxlv)
 
 *A Chrome extension that simplifies the process of transferring your subreddit subscriptions between Reddit accounts.* 🔄
@@ -10,7 +10,7 @@
 </div>
 
 <div align="center">
-  <img src="appImage.png" alt="App Image" width="300"/>
+  <img src="social-preview.png" alt="App Image" width="300"/>
   <p>Screenshot of the extension in action</p>
 </div>
 
@@ -26,7 +26,7 @@
 ## 📥 Installation
 
 ### Chrome Web Store (Recommended)
-1. Visit the [Chrome Web Store](chrome-store-link-here)
+1. Visit the [Chrome Web Store](https://chromewebstore.google.com/detail/reddit-copycat/dlbgdjjfgmdobjcjdlohjfgmkeljeegp?authuser=3&hl=en)
 2. Click "Add to Chrome"
 3. Follow the installation prompts
 
