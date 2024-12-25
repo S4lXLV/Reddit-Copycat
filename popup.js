@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const selectUnjoinedBtn = document.getElementById('selectUnjoinedBtn');
   const joinSelectedBtn = document.getElementById('joinSelectedBtn');
   const selectedCountDiv = document.querySelector('.selected-count');
+  const progressInfo = document.querySelector('.progress-info');
   let currentSubreddits = [];
   let joinedSubreddits = [];
   let selectedSubreddits = new Set();
@@ -45,11 +46,99 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  function showProgress(show = true) {
+    progressContainer.style.display = show ? 'flex' : 'none';
+  }
+
+  function saveProgressState(current, total, status) {
+    chrome.storage.local.set({
+      joinProgress: {
+        current,
+        total,
+        status,
+        timestamp: Date.now()
+      }
+    });
+  }
+
+  function clearProgressState() {
+    chrome.storage.local.remove('joinProgress');
+  }
+
   function updateProgress(current, total, status) {
     const percentage = (current / total) * 100;
     progressFill.style.width = `${percentage}%`;
     progressText.textContent = status || `Progress: ${current}/${total} subreddits`;
+    progressInfo.textContent = current === total ? 'Joining complete!' : 'Joining subreddits in progress...';
     console.log(`[Reddit Copycat] Progress: ${status || `${current}/${total}`}`);
+    
+    saveProgressState(current, total, status);
+    
+    if (current === total) {
+      setTimeout(() => {
+        clearProgressState();
+        showProgress(false);
+      }, 2000);
+    }
+  }
+
+  async function checkJoinStatus() {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'checkJoinStatus' });
+      return response.isJoining;
+    } catch (error) {
+      console.error('[Reddit Copycat] Error checking join status:', error);
+      return false;
+    }
+  }
+
+  async function checkProgressState() {
+    try {
+      const { joinProgress } = await chrome.storage.local.get(['joinProgress']);
+      const status = await chrome.runtime.sendMessage({ action: 'checkJoinStatus' });
+      
+      if (status.isJoining || (joinProgress?.inProgress && joinProgress.current < joinProgress.total)) {
+        // Verify the Reddit tab is still open
+        try {
+          await chrome.tabs.get(status.activeTabId);
+          showProgress(true);
+          if (joinProgress) {
+            updateProgress(joinProgress.current, joinProgress.total, joinProgress.status);
+          }
+        } catch (error) {
+          // Tab doesn't exist anymore
+          showStatus('The Reddit tab was closed. Please reopen Reddit and try again.', true);
+          showProgress(false);
+        }
+      } else if (joinProgress?.error) {
+        showStatus(joinProgress.error, true);
+        showProgress(false);
+      }
+    } catch (error) {
+      console.error('[Reddit Copycat] Error checking progress state:', error);
+    }
+  }
+
+  checkProgressState();
+  setInterval(checkProgressState, 1000); // Check every second
+
+  function setupProgressListener() {
+    cleanupProgressListener();
+    
+    progressListener = function(msg) {
+      if (msg.action === 'joinProgress') {
+        console.log('[Reddit Copycat] Progress update:', msg);
+        showProgress(true);
+        updateProgress(msg.current, msg.total, msg.status);
+        
+        // If complete, schedule a final check
+        if (msg.current === msg.total) {
+          setTimeout(checkProgressState, 2000);
+        }
+      }
+    };
+    
+    chrome.runtime.onMessage.addListener(progressListener);
   }
 
   function displaySubreddits(subreddits) {
@@ -240,39 +329,80 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  async function isRedditTab() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const isReddit = tab && tab.url && tab.url.includes('reddit.com');
-    console.log(`[Reddit Copycat] Current tab is${isReddit ? '' : ' not'} Reddit:`, tab?.url);
-    return isReddit;
-  }
-
   async function injectContentScriptIfNeeded() {
-    console.log('[Reddit Copycat] Checking content script status');
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) {
-      console.log('[Reddit Copycat] No active tab found');
-      return false;
-    }
-
     try {
-      // First try to send a ping message to see if the content script is already running
-      await chrome.tabs.sendMessage(tab.id, { action: 'ping' })
-        .catch(async (error) => {
-          if (error.message.includes('Receiving end does not exist')) {
-            console.log('[Reddit Copycat] Content script not found, injecting...');
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      
+      // First try to ping the content script
+      try {
+        const response = await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
+        if (response.success) {
+          console.log('[Reddit Copycat] Content script is already active');
+          return true;
+        }
+      } catch (error) {
+        // Content script is not loaded, proceed with injection
+        console.log('[Reddit Copycat] Content script not detected, injecting...');
+      }
+
+      // Inject the content script
             await chrome.scripting.executeScript({
               target: { tabId: tab.id },
               files: ['content.js']
             });
+
             // Wait a bit for the script to initialize
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-        });
-      return true;
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Verify the injection worked
+      try {
+        const response = await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
+        if (response.success) {
+          console.log('[Reddit Copycat] Content script successfully injected');
+          return true;
+        }
+      } catch (error) {
+        console.error('[Reddit Copycat] Failed to verify content script injection:', error);
+        return false;
+      }
     } catch (error) {
-      console.error('[Reddit Copycat] Error checking/injecting content script:', error);
+      console.error('[Reddit Copycat] Error injecting content script:', error);
       return false;
+    }
+  }
+
+  async function isRedditTab() {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      return tab.url.includes('reddit.com');
+    } catch (error) {
+      console.error('[Reddit Copycat] Error checking if Reddit tab:', error);
+      return false;
+    }
+  }
+
+  async function getCurrentUserSubreddits() {
+    try {
+      if (!await isRedditTab()) {
+        throw new Error('Please navigate to Reddit before using this feature.');
+      }
+
+      if (!await injectContentScriptIfNeeded()) {
+        throw new Error('Failed to initialize Reddit Copycat. Please refresh the page and try again.');
+      }
+
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const response = await chrome.tabs.sendMessage(tab.id, { action: 'getCurrentSubreddits' });
+      
+      if (!response.success) {
+        throw new Error('Failed to fetch subreddits. Please make sure you are logged in to Reddit.');
+      }
+      
+      return response.subreddits || [];
+    } catch (error) {
+      console.error('[Reddit Copycat] Error getting current subreddits:', error);
+      showStatus(error.message || 'An error occurred while fetching subreddits', true);
+      return [];
     }
   }
 
@@ -280,17 +410,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (progressListener) {
       chrome.runtime.onMessage.removeListener(progressListener);
       progressListener = null;
-    }
-  }
-
-  async function getCurrentUserSubreddits() {
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      const response = await chrome.tabs.sendMessage(tab.id, { action: 'getCurrentSubreddits' });
-      return response.subreddits || [];
-    } catch (error) {
-      console.error('[Reddit Copycat] Error getting current subreddits:', error);
-      return [];
     }
   }
 
@@ -310,65 +429,92 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   async function updateSubredditList(savedSubs, filter = false) {
-    const ul = subredditList.querySelector('ul');
-    ul.innerHTML = '';
-    
-    if (joinedSubreddits.length === 0) {
-      joinedSubreddits = await getCurrentUserSubreddits();
-    }
-
-    let subsToShow = savedSubs;
-    if (filter) {
-      subsToShow = savedSubs.filter(sub => !joinedSubreddits.includes(sub));
-    }
-
-    subsToShow.sort().forEach(sub => {
-      const li = document.createElement('li');
+    try {
+      const ul = subredditList.querySelector('ul');
+      ul.innerHTML = '';
       
-      // Create checkbox wrapper
-      const checkboxWrapper = document.createElement('div');
-      checkboxWrapper.className = 'checkbox-wrapper';
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.dataset.subreddit = sub;
-      checkbox.checked = selectedSubreddits.has(sub);
-      checkbox.addEventListener('change', () => {
-        if (checkbox.checked) {
-          selectedSubreddits.add(sub);
-        } else {
-          selectedSubreddits.delete(sub);
+      if (joinedSubreddits.length === 0) {
+        showStatus('Fetching current subreddits...', false, 0, true);
+        
+        // Check if we're on Reddit first
+        if (!await isRedditTab()) {
+          throw new Error('Please navigate to Reddit to see joined status.');
         }
-        updateSelectedCount();
+
+        // Make sure content script is injected
+        if (!await injectContentScriptIfNeeded()) {
+          throw new Error('Failed to initialize. Please refresh the Reddit page and try again.');
+        }
+
+        // Get current subreddits
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const response = await chrome.tabs.sendMessage(tab.id, { action: 'getCurrentSubreddits' });
+        
+        if (!response || !response.success) {
+          throw new Error(response?.error || 'Failed to fetch current subreddits. Please make sure you are logged in to Reddit.');
+        }
+        
+        joinedSubreddits = response.subreddits;
+        showStatus('', false, 0);
+      }
+
+      let subsToShow = savedSubs;
+      if (filter) {
+        subsToShow = savedSubs.filter(sub => !joinedSubreddits.includes(sub));
+      }
+
+      subsToShow.sort().forEach(sub => {
+        const li = document.createElement('li');
+        
+        // Create checkbox wrapper
+        const checkboxWrapper = document.createElement('div');
+        checkboxWrapper.className = 'checkbox-wrapper';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.dataset.subreddit = sub;
+        checkbox.checked = selectedSubreddits.has(sub);
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) {
+            selectedSubreddits.add(sub);
+          } else {
+            selectedSubreddits.delete(sub);
+          }
+          updateSelectedCount();
+        });
+        
+        // Create subreddit info section
+        const subInfo = document.createElement('div');
+        subInfo.className = 'sub-info';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'sub-name';
+        nameSpan.textContent = `r/${sub}`;
+        
+        const statusBadge = document.createElement('span');
+        statusBadge.className = 'status-badge ' + (joinedSubreddits.includes(sub) ? 'joined' : 'not-joined');
+        statusBadge.textContent = joinedSubreddits.includes(sub) ? 'Joined' : 'Not Joined';
+        
+        checkboxWrapper.appendChild(checkbox);
+        subInfo.appendChild(checkboxWrapper);
+        subInfo.appendChild(nameSpan);
+        subInfo.appendChild(statusBadge);
+        li.appendChild(subInfo);
+        ul.appendChild(li);
       });
-      
-      // Create subreddit info section
-      const subInfo = document.createElement('div');
-      subInfo.className = 'sub-info';
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'sub-name';
-      nameSpan.textContent = `r/${sub}`;
-      
-      const statusBadge = document.createElement('span');
-      statusBadge.className = 'status-badge ' + (joinedSubreddits.includes(sub) ? 'joined' : 'not-joined');
-      statusBadge.textContent = joinedSubreddits.includes(sub) ? 'Joined' : 'Not Joined';
-      
-      checkboxWrapper.appendChild(checkbox);
-      subInfo.appendChild(checkboxWrapper);
-      subInfo.appendChild(nameSpan);
-      subInfo.appendChild(statusBadge);
-      li.appendChild(subInfo);
-      ul.appendChild(li);
-    });
 
-    const totalSubs = savedSubs.length;
-    const joinedCount = savedSubs.filter(sub => joinedSubreddits.includes(sub)).length;
-    const unjoinedCount = totalSubs - joinedCount;
-    statsDiv.textContent = `Total: ${totalSubs} | Joined: ${joinedCount} | Not Joined: ${unjoinedCount}`;
+      const totalSubs = savedSubs.length;
+      const joinedCount = savedSubs.filter(sub => joinedSubreddits.includes(sub)).length;
+      const unjoinedCount = totalSubs - joinedCount;
+      statsDiv.textContent = `Total: ${totalSubs} | Joined: ${joinedCount} | Not Joined: ${unjoinedCount}`;
 
-    subredditList.style.display = 'block';
-    filterContainer.style.display = 'block';
-    selectionControls.style.display = 'block';
-    updateSelectedCount();
+      subredditList.style.display = 'block';
+      filterContainer.style.display = 'block';
+      selectionControls.style.display = 'block';
+      updateSelectedCount();
+    } catch (error) {
+      console.error('[Reddit Copycat] Error updating subreddit list:', error);
+      showStatus(error.message, true);
+      joinedSubreddits = []; // Reset so it will try again next time
+    }
   }
 
   selectAllBtn.addEventListener('click', () => {
@@ -401,49 +547,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     try {
       joinSelectedBtn.disabled = true;
-      progressContainer.style.display = 'block';
+      showProgress(true);
+      setupProgressListener();
       
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       
-      chrome.runtime.onMessage.addListener(function progressListener(msg) {
-        if (msg.action === 'joinProgress') {
-          updateProgress(msg.current, msg.total, msg.status);
-          if (msg.current === msg.total) {
-            setTimeout(() => {
-              progressContainer.style.display = 'none';
-              chrome.runtime.onMessage.removeListener(progressListener);
-            }, 2000);
-          }
-        }
-      });
-
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        action: 'joinSubreddits',
+      // Send join request through background script
+      const response = await chrome.runtime.sendMessage({
+        action: 'startJoining',
+        tabId: tab.id,
         subreddits: Array.from(selectedSubreddits)
       });
       
       if (response.success) {
-        let message = `Successfully joined ${response.successCount} out of ${response.totalProcessed} selected subreddits!`;
-        if (response.failedSubs && response.failedSubs.length > 0) {
-          message += ` Failed to join ${response.failedSubs.length} subreddits.`;
-          console.log('[Reddit Copycat] Failed subreddits:', response.failedSubs);
-        }
-        showStatus(message, response.failedSubs && response.failedSubs.length > 0);
+        let message = `Successfully started joining ${selectedSubreddits.size} subreddits!`;
+        showStatus(message);
         
-        // Update joined subreddits and refresh the list
-        joinedSubreddits = await getCurrentUserSubreddits();
-        updateSubredditList(currentSubreddits, filterCheckbox.checked);
+        // Clear selection since the process has started
         selectedSubreddits.clear();
         updateSelectedCount();
       } else {
-        const errorMsg = response.error || 'Failed to join subreddits. Please make sure you are logged in to Reddit and refresh the page.';
+        const errorMsg = response.error || 'Failed to start joining process. Please make sure you are logged in to Reddit and refresh the page.';
         showStatus(errorMsg, true);
-        progressContainer.style.display = 'none';
+        showProgress(false);
       }
     } catch (error) {
       console.error('[Reddit Copycat] Join error:', error);
       showStatus('Error: ' + (error.message || 'Unknown error occurred'), true);
-      progressContainer.style.display = 'none';
+      showProgress(false);
     } finally {
       joinSelectedBtn.disabled = false;
     }
@@ -543,60 +674,31 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       await injectContentScriptIfNeeded();
-      progressContainer.style.display = 'block';
+      showProgress(true);
+      setupProgressListener();
       
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      console.log('[Reddit Copycat] Setting up progress listener');
       
-      // Clean up any existing listener
-      cleanupProgressListener();
+      // Send join request through background script
+      const response = await chrome.runtime.sendMessage({
+        action: 'startJoining',
+        tabId: tab.id
+      });
       
-      // Set up new progress listener
-      progressListener = function(msg) {
-        if (msg.action === 'joinProgress') {
-          console.log('[Reddit Copycat] Progress update:', msg);
-          updateProgress(msg.current, msg.total, msg.status);
-          if (msg.current === msg.total) {
-            setTimeout(() => {
-              progressContainer.style.display = 'none';
-              cleanupProgressListener();
-            }, 2000);
-          }
-        }
-      };
-      
-      chrome.runtime.onMessage.addListener(progressListener);
-
-      console.log('[Reddit Copycat] Sending joinSubreddits message to tab:', tab.id);
-      const response = await chrome.tabs.sendMessage(tab.id, { action: 'joinSubreddits' })
-        .catch(error => {
-          console.error('[Reddit Copycat] Message send error:', error);
-          if (error.message.includes('Receiving end does not exist')) {
-            throw new Error('Please refresh the Reddit page and try again.');
-          }
-          throw error;
-        });
-      
-      console.log('[Reddit Copycat] Join response:', response);
       if (response.success) {
-        let message = `Successfully joined ${response.successCount} out of ${response.totalProcessed} subreddits!`;
-        if (response.failedSubs && response.failedSubs.length > 0) {
-          message += ` Failed to join ${response.failedSubs.length} subreddits.`;
-          console.log('[Reddit Copycat] Failed subreddits:', response.failedSubs);
-        }
-        showStatus(message, response.failedSubs && response.failedSubs.length > 0);
+        showStatus('Successfully started joining process!');
       } else if (response.error === 'Operation in progress') {
         showStatus('Please wait, another operation is in progress...', true);
-        progressContainer.style.display = 'none';
+        showProgress(false);
       } else {
-        const errorMsg = response.error || 'Failed to join subreddits. Please make sure you are logged in to Reddit and refresh the page.';
+        const errorMsg = response.error || 'Failed to start joining process. Please make sure you are logged in to Reddit and refresh the page.';
         showStatus(errorMsg, true);
-        progressContainer.style.display = 'none';
+        showProgress(false);
       }
     } catch (error) {
       console.error('[Reddit Copycat] Join error:', error);
       showStatus('Error: ' + (error.message || 'Unknown error occurred'), true);
-      progressContainer.style.display = 'none';
+      showProgress(false);
     } finally {
       joinButton.disabled = false;
     }

@@ -6,6 +6,21 @@ if (!window.redditCopycatInitialized) {
   // Global lock for operations
   let isOperationInProgress = false;
 
+  // Cache for API responses
+  const apiCache = {
+    userSession: null,
+    subredditDetails: new Map(),
+    lastJoinTimestamp: 0
+  };
+
+  const RATE_LIMIT = {
+    MIN_DELAY: 2000,        // Minimum 2 seconds between requests
+    BATCH_SIZE: 25,         // Process 25 subreddits at a time
+    BATCH_DELAY: 60000,     // 1 minute delay between batches
+    MAX_RETRIES: 3,         // Maximum number of retries per subreddit
+    BACKOFF_BASE: 5000      // Base delay for exponential backoff
+  };
+
   async function getAllUserSubreddits() {
     try {
       console.log('[Reddit Copycat] Starting to fetch subreddits');
@@ -125,131 +140,135 @@ if (!window.redditCopycatInitialized) {
     }
   }
 
+  async function getUserSession() {
+    if (apiCache.userSession) {
+      return apiCache.userSession;
+    }
+
+    const meResponse = await fetch('https://www.reddit.com/api/me.json', {
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!meResponse.ok) {
+      throw new Error('Failed to get user session');
+    }
+
+    const meData = await meResponse.json();
+    const cookies = document.cookie.split(';');
+    let csrfToken = '';
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'csrf_token') {
+        csrfToken = value;
+        break;
+      }
+    }
+
+    if (!csrfToken) {
+      throw new Error('CSRF token not found in cookies');
+    }
+
+    apiCache.userSession = {
+      modhash: meData.data?.modhash,
+      csrfToken
+    };
+
+    return apiCache.userSession;
+  }
+
+  async function getSubredditDetails(subredditName) {
+    if (apiCache.subredditDetails.has(subredditName)) {
+      return apiCache.subredditDetails.get(subredditName);
+    }
+
+    const aboutResponse = await fetch(`https://www.reddit.com/r/${subredditName}/about.json`, {
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!aboutResponse.ok) {
+      throw new Error(`Subreddit not found: ${aboutResponse.status}`);
+    }
+
+    const aboutData = await aboutResponse.json();
+    const details = { fullName: aboutData.data.name };
+    apiCache.subredditDetails.set(subredditName, details);
+    return details;
+  }
+
   async function joinSubreddit(subredditName) {
     try {
       console.log(`[Reddit Copycat] Attempting to join r/${subredditName}`);
       
-      // First, get the subreddit details
-      console.log(`[Reddit Copycat] Fetching details for r/${subredditName}`);
-      const aboutResponse = await fetch(`https://www.reddit.com/r/${subredditName}/about.json`, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!aboutResponse.ok) {
-        throw new Error(`Subreddit not found: ${aboutResponse.status}`);
+      // Implement rate limiting
+      const now = Date.now();
+      const timeSinceLastJoin = now - apiCache.lastJoinTimestamp;
+      if (timeSinceLastJoin < RATE_LIMIT.MIN_DELAY) {
+        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT.MIN_DELAY - timeSinceLastJoin));
       }
-
-      const aboutData = await aboutResponse.json();
-      const fullName = aboutData.data.name;
-      console.log(`[Reddit Copycat] Got subreddit fullname: ${fullName}`);
-
-      // Get the modhash and session info
-      const meResponse = await fetch('https://www.reddit.com/api/me.json', {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!meResponse.ok) {
-        throw new Error('Failed to get user session');
-      }
-
-      const meData = await meResponse.json();
-      const modhash = meData.data?.modhash;
-      console.log('[Reddit Copycat] Got user session data');
-
-      // Get CSRF token from cookies
-      const cookies = document.cookie.split(';');
-      let csrfToken = '';
-      for (const cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'csrf_token') {
-          csrfToken = value;
-          break;
-        }
-      }
-
-      if (!csrfToken) {
-        throw new Error('CSRF token not found in cookies');
-      }
-
+      
+      // Get cached or fetch new session data
+      const session = await getUserSession();
+      
+      // Get cached or fetch new subreddit details
+      const subredditDetails = await getSubredditDetails(subredditName);
+      
       // Prepare the request
       const formData = new URLSearchParams();
       formData.append('action', 'sub');
-      formData.append('sr', fullName);
+      formData.append('sr', subredditDetails.fullName);
       formData.append('skip_initial_defaults', 'true');
-      if (modhash) formData.append('uh', modhash);
+      if (session.modhash) formData.append('uh', session.modhash);
 
-      console.log(`[Reddit Copycat] Sending join request for ${fullName}`);
-      
-      // First try the old endpoint
-      try {
-        const oldResponse = await fetch(`https://www.reddit.com/r/${subredditName}/subscribe`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'x-csrf-token': csrfToken,
-            'x-requested-with': 'XMLHttpRequest',
-            'User-Agent': 'web'
-          },
-          body: formData.toString(),
-          credentials: 'include'
-        });
+      // Try joining with exponential backoff
+      let retryCount = 0;
+      while (retryCount < RATE_LIMIT.MAX_RETRIES) {
+        try {
+          const response = await fetch('https://www.reddit.com/api/subscribe', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'x-csrf-token': session.csrfToken,
+              'x-requested-with': 'XMLHttpRequest',
+              'User-Agent': 'web',
+              'Origin': 'https://www.reddit.com',
+              'Referer': `https://www.reddit.com/r/${subredditName}`
+            },
+            body: formData.toString(),
+            credentials: 'include'
+          });
 
-        if (oldResponse.ok) {
-          console.log(`[Reddit Copycat] Successfully joined r/${subredditName} using old endpoint`);
-          return true;
-        }
-      } catch (error) {
-        console.log('[Reddit Copycat] Old endpoint failed, trying new endpoint');
-      }
+          if (response.ok) {
+            console.log(`[Reddit Copycat] Successfully joined r/${subredditName}`);
+            apiCache.lastJoinTimestamp = Date.now();
+            return true;
+          }
 
-      // Try the new endpoint
-      const response = await fetch('https://www.reddit.com/api/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'x-csrf-token': csrfToken,
-          'x-requested-with': 'XMLHttpRequest',
-          'User-Agent': 'web',
-          'Origin': 'https://www.reddit.com',
-          'Referer': `https://www.reddit.com/r/${subredditName}`
-        },
-        body: formData.toString(),
-        credentials: 'include'
-      });
+          const responseText = await response.text();
+          if (response.status === 429 || responseText.includes('rate')) {
+            const backoffDelay = RATE_LIMIT.BACKOFF_BASE * Math.pow(2, retryCount);
+            console.log(`[Reddit Copycat] Rate limited, waiting ${backoffDelay}ms before retry`);
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+            retryCount++;
+            continue;
+          }
 
-      if (!response.ok) {
-        const responseText = await response.text();
-        console.error(`[Reddit Copycat] Join response:`, {
-          status: response.status,
-          statusText: response.statusText,
-          responseText: responseText
-        });
-
-        // Try one more time with the direct API
-        const directResponse = await fetch('https://oauth.reddit.com/api/subscribe', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Bearer ${csrfToken}`,
-            'User-Agent': 'web'
-          },
-          body: formData.toString(),
-          credentials: 'include'
-        });
-
-        if (!directResponse.ok) {
           throw new Error(`Join request failed: ${response.status}`);
+        } catch (error) {
+          console.error(`[Reddit Copycat] Error in join attempt ${retryCount + 1}:`, error);
+          retryCount++;
+          if (retryCount >= RATE_LIMIT.MAX_RETRIES) {
+            throw error;
+          }
         }
       }
 
-      console.log(`[Reddit Copycat] Successfully joined r/${subredditName}`);
-      return true;
+      throw new Error('Max retries reached');
     } catch (error) {
       console.error(`[Reddit Copycat] Error joining r/${subredditName}:`, error);
       return false;
@@ -295,9 +314,8 @@ if (!window.redditCopycatInitialized) {
 
       else if (request.action === 'joinSubreddits') {
         console.log('[Reddit Copycat] Processing joinSubreddits request');
-        const result = await new Promise((resolve) => {
+        const result = await new Promise(resolve => {
           chrome.storage.local.get(['savedSubreddits'], async (result) => {
-            // Use the subreddits from the request if provided, otherwise use all saved subreddits
             const subsToProcess = request.subreddits || result.savedSubreddits;
             
             if (!subsToProcess || subsToProcess.length === 0) {
@@ -320,48 +338,63 @@ if (!window.redditCopycatInitialized) {
             let totalAttempted = 0;
             let failedSubs = [];
 
-            chrome.runtime.sendMessage({
-              action: 'joinProgress',
-              current: 0,
-              total: subsToJoin.length,
-              status: `Found ${subsToJoin.length} subreddits to join...`
-            });
-
-            for (let i = 0; i < subsToJoin.length; i++) {
-              const subreddit = subsToJoin[i];
-              totalAttempted++;
-
-              if (currentSubs.includes(subreddit)) {
-                console.log(`[Reddit Copycat] Skipping r/${subreddit} (already joined)`);
-                chrome.runtime.sendMessage({
-                  action: 'joinProgress',
-                  current: totalAttempted,
-                  total: subsToJoin.length,
-                  status: `Already joined r/${subreddit} (${totalAttempted}/${subsToJoin.length})`
-                });
-                continue;
-              }
-
-              const success = await joinSubreddit(subreddit);
-              if (success) {
-                successCount++;
-                console.log(`[Reddit Copycat] Successfully joined r/${subreddit}`);
-              } else {
-                failedSubs.push(subreddit);
-                console.log(`[Reddit Copycat] Failed to join r/${subreddit}`);
-              }
-
+            // Process in batches
+            for (let i = 0; i < subsToJoin.length; i += RATE_LIMIT.BATCH_SIZE) {
+              const batch = subsToJoin.slice(i, i + RATE_LIMIT.BATCH_SIZE);
+              
+              // Update progress for batch start
               chrome.runtime.sendMessage({
                 action: 'joinProgress',
                 current: totalAttempted,
                 total: subsToJoin.length,
-                status: success 
-                  ? `Joined r/${subreddit} (${totalAttempted}/${subsToJoin.length})`
-                  : `Failed to join r/${subreddit} (${totalAttempted}/${subsToJoin.length})`
+                status: `Starting batch ${Math.floor(i/RATE_LIMIT.BATCH_SIZE) + 1}...`
               });
 
-              const delay = failedSubs.length > 0 ? 2000 : 1000;
-              await new Promise(resolve => setTimeout(resolve, delay));
+              // Process each subreddit in the batch
+              for (const subreddit of batch) {
+                totalAttempted++;
+
+                if (currentSubs.includes(subreddit)) {
+                  console.log(`[Reddit Copycat] Skipping r/${subreddit} (already joined)`);
+                  chrome.runtime.sendMessage({
+                    action: 'joinProgress',
+                    current: totalAttempted,
+                    total: subsToJoin.length,
+                    status: `Already joined r/${subreddit} (${totalAttempted}/${subsToJoin.length})`
+                  });
+                  continue;
+                }
+
+                const success = await joinSubreddit(subreddit);
+                if (success) {
+                  successCount++;
+                  console.log(`[Reddit Copycat] Successfully joined r/${subreddit}`);
+                } else {
+                  failedSubs.push(subreddit);
+                  console.log(`[Reddit Copycat] Failed to join r/${subreddit}`);
+                }
+
+                chrome.runtime.sendMessage({
+                  action: 'joinProgress',
+                  current: totalAttempted,
+                  total: subsToJoin.length,
+                  status: success 
+                    ? `Joined r/${subreddit} (${totalAttempted}/${subsToJoin.length})`
+                    : `Failed to join r/${subreddit} (${totalAttempted}/${subsToJoin.length})`
+                });
+              }
+
+              // Add delay between batches if not the last batch
+              if (i + RATE_LIMIT.BATCH_SIZE < subsToJoin.length) {
+                console.log('[Reddit Copycat] Batch complete, waiting before next batch...');
+                chrome.runtime.sendMessage({
+                  action: 'joinProgress',
+                  current: totalAttempted,
+                  total: subsToJoin.length,
+                  status: `Batch complete. Waiting ${RATE_LIMIT.BATCH_DELAY/1000} seconds before next batch...`
+                });
+                await new Promise(resolve => setTimeout(resolve, RATE_LIMIT.BATCH_DELAY));
+              }
             }
 
             console.log(`[Reddit Copycat] Joining complete. Success: ${successCount}, Failed: ${failedSubs.length}`);
@@ -384,15 +417,14 @@ if (!window.redditCopycatInitialized) {
 
       else if (request.action === 'getCurrentSubreddits') {
         console.log('[Reddit Copycat] Getting current subreddits');
-        getAllUserSubreddits().then(subreddits => {
-          if (subreddits) {
-            console.log(`[Reddit Copycat] Found ${subreddits.length} current subreddits`);
-            sendResponse({ success: true, subreddits: subreddits });
-          } else {
-            console.log('[Reddit Copycat] Failed to get current subreddits');
-            sendResponse({ success: false, subreddits: [] });
-          }
-        });
+        const subreddits = await getAllUserSubreddits();
+        if (subreddits) {
+          console.log(`[Reddit Copycat] Found ${subreddits.length} current subreddits`);
+          sendResponse({ success: true, subreddits: subreddits });
+        } else {
+          console.log('[Reddit Copycat] Failed to get current subreddits');
+          sendResponse({ success: false, error: 'Failed to fetch current subreddits', subreddits: [] });
+        }
         return true;
       }
 

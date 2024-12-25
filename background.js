@@ -3,16 +3,96 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ savedSubreddits: [] });
 });
 
-// Handle import processing in the background
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'processImport') {
-    processImport(request.data)
-      .then(() => sendResponse({ success: true }))
-      .catch((error) => sendResponse({ success: false, error: error.message }));
-    return true; // Keep the message channel open
+let joinInProgress = false;
+let activeTabId = null;
+let currentJoinOperation = null;
+
+// Listen for messages from popup or content script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'startJoining') {
+    // Store the active tab ID
+    activeTabId = message.tabId;
+    
+    // Forward the join request to content script
+    chrome.tabs.sendMessage(message.tabId, {
+      action: 'joinSubreddits',
+      subreddits: message.subreddits
+    }).then(response => {
+      if (response.success) {
+        joinInProgress = true;
+        currentJoinOperation = {
+          tabId: message.tabId,
+          subreddits: message.subreddits
+        };
+        // Initialize progress state
+        chrome.storage.local.set({
+          joinProgress: {
+            current: 0,
+            total: message.subreddits ? message.subreddits.length : 0,
+            status: 'Starting...',
+            timestamp: Date.now(),
+            inProgress: true
+          }
+        });
+      }
+      sendResponse(response);
+    }).catch(error => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  }
+  
+  else if (message.action === 'joinProgress') {
+    // Store progress state
+    chrome.storage.local.set({
+      joinProgress: {
+        current: message.current,
+        total: message.total,
+        status: message.status,
+        timestamp: Date.now(),
+        inProgress: true
+      }
+    });
+
+    // Forward progress updates to any open popup
+    chrome.runtime.sendMessage(message).catch(() => {
+      // Popup might be closed, ignore the error
+    });
+
+    // Check if joining is complete
+    if (message.current === message.total) {
+      joinInProgress = false;
+      currentJoinOperation = null;
+      // Clear progress after a delay
+      setTimeout(() => {
+        chrome.storage.local.set({
+          joinProgress: {
+            inProgress: false
+          }
+        });
+      }, 2000);
+    }
+  }
+  
+  else if (message.action === 'checkJoinStatus') {
+    // Send back both the status and the active tab ID
+    sendResponse({ 
+      isJoining: joinInProgress,
+      activeTabId: activeTabId,
+      currentOperation: currentJoinOperation
+    });
+    return true;
+  }
+
+  else if (message.action === 'processImport') {
+    processImport(message.data)
+      .then(result => sendResponse(result))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
   }
 });
 
+// Handle import processing in the background
 async function processImport(importedSubs) {
   try {
     // Get current subreddits and merge
@@ -20,7 +100,7 @@ async function processImport(importedSubs) {
     const currentSubs = storage.savedSubreddits || [];
     const newSubs = importedSubs.filter(sub => !currentSubs.includes(sub));
     const allSubs = [...new Set([...currentSubs, ...importedSubs])];
-
+    
     // Save the merged list
     await chrome.storage.local.set({
       savedSubreddits: allSubs,
@@ -40,9 +120,13 @@ async function processImport(importedSubs) {
       message: `Successfully imported ${newSubs.length} new subreddits! (${allSubs.length} total)`
     });
 
-    return { success: true };
+    return { 
+      success: true,
+      newCount: newSubs.length,
+      totalCount: allSubs.length
+    };
   } catch (error) {
-    console.error('Import processing error:', error);
+    console.error('[Reddit Copycat] Import processing error:', error);
     
     await chrome.storage.local.set({
       lastImport: {
@@ -63,21 +147,42 @@ async function processImport(importedSubs) {
   }
 }
 
-// Clean up old import status periodically
-chrome.alarms.create('cleanupImportStatus', { periodInMinutes: 5 });
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'cleanupImportStatus') {
-    chrome.storage.local.get(['lastImport', 'pendingImport'], (result) => {
-      const now = Date.now();
-      
-      // Clean up old import status
-      if (result.lastImport && now - result.lastImport.timestamp > 300000) {
-        chrome.storage.local.remove('lastImport');
-      }
-      
-      // Clean up stale pending imports
-      if (result.pendingImport && now - result.pendingImport.timestamp > 300000) {
-        chrome.storage.local.remove('pendingImport');
+// Listen for tab updates to handle Reddit page refreshes
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url?.includes('reddit.com') && joinInProgress && tabId === activeTabId) {
+    console.log('[Reddit Copycat] Reddit page refreshed, reinjecting content script');
+    // Reinject content script if needed
+    chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content.js']
+    }).then(() => {
+      // Small delay to ensure content script is initialized
+      setTimeout(() => {
+        // Try to resume the join operation
+        if (currentJoinOperation) {
+          chrome.tabs.sendMessage(tabId, {
+            action: 'joinSubreddits',
+            subreddits: currentJoinOperation.subreddits
+          }).catch(() => {
+            console.log('[Reddit Copycat] Failed to resume join operation');
+          });
+        }
+      }, 1000);
+    });
+  }
+});
+
+// Listen for tab removal
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId === activeTabId) {
+    // The Reddit tab was closed
+    joinInProgress = false;
+    currentJoinOperation = null;
+    activeTabId = null;
+    chrome.storage.local.set({
+      joinProgress: {
+        inProgress: false,
+        error: 'The Reddit tab was closed. Please reopen Reddit and try again.'
       }
     });
   }
