@@ -275,6 +275,79 @@ if (!window.redditCopycatInitialized) {
     }
   }
 
+  async function leaveSubreddit(subredditName) {
+    try {
+      console.log(`[Reddit Copycat] Attempting to leave r/${subredditName}`);
+      
+      // Implement rate limiting
+      const now = Date.now();
+      const timeSinceLastJoin = now - apiCache.lastJoinTimestamp;
+      if (timeSinceLastJoin < RATE_LIMIT.MIN_DELAY) {
+        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT.MIN_DELAY - timeSinceLastJoin));
+      }
+      
+      // Get cached or fetch new session data
+      const session = await getUserSession();
+      
+      // Get cached or fetch new subreddit details
+      const subredditDetails = await getSubredditDetails(subredditName);
+      
+      // Prepare the request
+      const formData = new URLSearchParams();
+      formData.append('action', 'unsub');
+      formData.append('sr', subredditDetails.fullName);
+      if (session.modhash) formData.append('uh', session.modhash);
+
+      // Try leaving with exponential backoff
+      let retryCount = 0;
+      while (retryCount < RATE_LIMIT.MAX_RETRIES) {
+        try {
+          const response = await fetch('https://www.reddit.com/api/subscribe', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'x-csrf-token': session.csrfToken,
+              'x-requested-with': 'XMLHttpRequest',
+              'User-Agent': 'web',
+              'Origin': 'https://www.reddit.com',
+              'Referer': `https://www.reddit.com/r/${subredditName}`
+            },
+            body: formData.toString(),
+            credentials: 'include'
+          });
+
+          if (response.ok) {
+            console.log(`[Reddit Copycat] Successfully left r/${subredditName}`);
+            apiCache.lastJoinTimestamp = Date.now();
+            return true;
+          }
+
+          const responseText = await response.text();
+          if (response.status === 429 || responseText.includes('rate')) {
+            const backoffDelay = RATE_LIMIT.BACKOFF_BASE * Math.pow(2, retryCount);
+            console.log(`[Reddit Copycat] Rate limited, waiting ${backoffDelay}ms before retry`);
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+            retryCount++;
+            continue;
+          }
+
+          throw new Error(`Leave request failed: ${response.status}`);
+        } catch (error) {
+          console.error(`[Reddit Copycat] Error in leave attempt ${retryCount + 1}:`, error);
+          retryCount++;
+          if (retryCount >= RATE_LIMIT.MAX_RETRIES) {
+            throw error;
+          }
+        }
+      }
+
+      throw new Error('Max retries reached');
+    } catch (error) {
+      console.error(`[Reddit Copycat] Error leaving r/${subredditName}:`, error);
+      return false;
+    }
+  }
+
   // Message handler function
   async function handleMessage(request, sender, sendResponse) {
     console.log('[Reddit Copycat] Received message:', request);
@@ -334,6 +407,13 @@ if (!window.redditCopycatInitialized) {
 
             const subsToJoin = subsToProcess.filter(sub => !currentSubs.includes(sub));
             console.log(`[Reddit Copycat] ${subsToJoin.length} subreddits to join`);
+            
+            if (subsToJoin.length === 0) {
+              console.log('[Reddit Copycat] All subreddits are already joined');
+              resolve({ success: false, error: 'You are already a member of all selected subreddits!' });
+              return;
+            }
+
             let successCount = 0;
             let totalAttempted = 0;
             let failedSubs = [];
@@ -425,6 +505,116 @@ if (!window.redditCopycatInitialized) {
           console.log('[Reddit Copycat] Failed to get current subreddits');
           sendResponse({ success: false, error: 'Failed to fetch current subreddits', subreddits: [] });
         }
+        return true;
+      }
+
+      else if (request.action === 'leaveSubreddits') {
+        console.log('[Reddit Copycat] Processing leaveSubreddits request');
+        const result = await new Promise(resolve => {
+          chrome.storage.local.get(['savedSubreddits'], async (result) => {
+            const subsToProcess = request.subreddits || result.savedSubreddits;
+            
+            if (!subsToProcess || subsToProcess.length === 0) {
+              console.log('[Reddit Copycat] No subreddits to leave');
+              resolve({ success: false, error: 'No subreddits to leave' });
+              return;
+            }
+
+            console.log(`[Reddit Copycat] Found ${subsToProcess.length} subreddits to process`);
+            const currentSubs = await getAllUserSubreddits();
+            if (!currentSubs) {
+              console.log('[Reddit Copycat] Failed to fetch current subreddits');
+              resolve({ success: false, error: 'Failed to fetch current subreddits' });
+              return;
+            }
+
+            const subsToLeave = subsToProcess.filter(sub => currentSubs.includes(sub));
+            console.log(`[Reddit Copycat] ${subsToLeave.length} subreddits to leave`);
+            
+            if (subsToLeave.length === 0) {
+              console.log('[Reddit Copycat] Not a member of any selected subreddits');
+              resolve({ success: false, error: 'You are not a member of any selected subreddits!' });
+              return;
+            }
+
+            let successCount = 0;
+            let totalAttempted = 0;
+            let failedSubs = [];
+
+            // Process in batches
+            for (let i = 0; i < subsToLeave.length; i += RATE_LIMIT.BATCH_SIZE) {
+              const batch = subsToLeave.slice(i, i + RATE_LIMIT.BATCH_SIZE);
+
+              // Update progress for batch start
+              chrome.runtime.sendMessage({
+                action: 'leaveProgress',
+                current: totalAttempted,
+                total: subsToLeave.length,
+                status: `Starting batch ${Math.floor(i/RATE_LIMIT.BATCH_SIZE) + 1}...`
+              });
+
+              // Process each subreddit in the batch
+              for (const subreddit of batch) {
+                totalAttempted++;
+
+                if (!currentSubs.includes(subreddit)) {
+                  console.log(`[Reddit Copycat] Skipping r/${subreddit} (not joined)`);
+                  chrome.runtime.sendMessage({
+                    action: 'leaveProgress',
+                    current: totalAttempted,
+                    total: subsToLeave.length,
+                    status: `Not a member of r/${subreddit} (${totalAttempted}/${subsToLeave.length})`
+                  });
+                  continue;
+                }
+
+                const success = await leaveSubreddit(subreddit);
+                if (success) {
+                  successCount++;
+                  console.log(`[Reddit Copycat] Successfully left r/${subreddit}`);
+                } else {
+                  failedSubs.push(subreddit);
+                  console.log(`[Reddit Copycat] Failed to leave r/${subreddit}`);
+                }
+
+                chrome.runtime.sendMessage({
+                  action: 'leaveProgress',
+                  current: totalAttempted,
+                  total: subsToLeave.length,
+                  status: success 
+                    ? `Left r/${subreddit} (${totalAttempted}/${subsToLeave.length})`
+                    : `Failed to leave r/${subreddit} (${totalAttempted}/${subsToLeave.length})`
+                });
+              }
+
+              // Add delay between batches if not the last batch
+              if (i + RATE_LIMIT.BATCH_SIZE < subsToLeave.length) {
+                console.log('[Reddit Copycat] Batch complete, waiting before next batch...');
+                chrome.runtime.sendMessage({
+                  action: 'leaveProgress',
+                  current: totalAttempted,
+                  total: subsToLeave.length,
+                  status: `Batch complete. Waiting ${RATE_LIMIT.BATCH_DELAY/1000} seconds before next batch...`
+                });
+                await new Promise(resolve => setTimeout(resolve, RATE_LIMIT.BATCH_DELAY));
+              }
+            }
+
+            console.log(`[Reddit Copycat] Leaving complete. Success: ${successCount}, Failed: ${failedSubs.length}`);
+            if (failedSubs.length > 0) {
+              console.log('[Reddit Copycat] Failed subreddits:', failedSubs);
+            }
+
+            resolve({ 
+              success: successCount > 0,
+              totalProcessed: totalAttempted,
+              successCount: successCount,
+              failedSubs: failedSubs
+            });
+          });
+        });
+
+        sendResponse(result);
         return true;
       }
 

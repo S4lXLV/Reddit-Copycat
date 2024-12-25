@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const joinSelectedBtn = document.getElementById('joinSelectedBtn');
   const selectedCountDiv = document.querySelector('.selected-count');
   const progressInfo = document.querySelector('.progress-info');
+  const leaveSelectedBtn = document.getElementById('leaveSelectedBtn');
+  const leaveSavedSubreddits = document.getElementById('leaveSavedSubreddits');
   let currentSubreddits = [];
   let joinedSubreddits = [];
   let selectedSubreddits = new Set();
@@ -31,32 +33,40 @@ document.addEventListener('DOMContentLoaded', function() {
   function showStatus(message, isError = false, duration = 3000, isLoading = false) {
     if (!message) {
       statusDiv.style.display = 'none';
+      document.querySelector('.status-overlay').style.display = 'none';
       return;
     }
 
     console.log(`[Reddit Copycat] Status: ${message} (${isError ? 'error' : isLoading ? 'loading' : 'success'})`);
-    statusDiv.textContent = message;
+    const messageSpan = statusDiv.querySelector('.status-message');
+    messageSpan.textContent = message;
     statusDiv.style.display = 'block';
+    document.querySelector('.status-overlay').style.display = 'block';
     statusDiv.className = `status ${isError ? 'error' : isLoading ? 'loading' : 'success'}`;
     
     if (duration > 0 && !isLoading) {
       setTimeout(() => {
         statusDiv.style.display = 'none';
+        document.querySelector('.status-overlay').style.display = 'none';
       }, duration);
     }
   }
 
-  function showProgress(show = true) {
+  function showProgress(show = true, isLeaving = false) {
     progressContainer.style.display = show ? 'flex' : 'none';
+    if (show) {
+      progressInfo.textContent = isLeaving ? 'Leaving subreddits in progress...' : 'Joining subreddits in progress...';
+    }
   }
 
-  function saveProgressState(current, total, status) {
+  function saveProgressState(current, total, status, isLeaving = false) {
     chrome.storage.local.set({
       joinProgress: {
         current,
         total,
         status,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        isLeaving: isLeaving
       }
     });
   }
@@ -65,14 +75,20 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.storage.local.remove('joinProgress');
   }
 
-  function updateProgress(current, total, status) {
+  function updateProgressInfo(current, total, status, isLeaving = false) {
     const percentage = (current / total) * 100;
     progressFill.style.width = `${percentage}%`;
     progressText.textContent = status || `Progress: ${current}/${total} subreddits`;
-    progressInfo.textContent = current === total ? 'Joining complete!' : 'Joining subreddits in progress...';
+    progressInfo.textContent = current === total 
+      ? (isLeaving ? 'Leaving complete!' : 'Joining complete!') 
+      : (isLeaving ? 'Leaving subreddits in progress...' : 'Joining subreddits in progress...');
+  }
+
+  function updateProgress(current, total, status, isLeaving = false) {
+    updateProgressInfo(current, total, status, isLeaving);
     console.log(`[Reddit Copycat] Progress: ${status || `${current}/${total}`}`);
     
-    saveProgressState(current, total, status);
+    saveProgressState(current, total, status, isLeaving);
     
     if (current === total) {
       setTimeout(() => {
@@ -101,9 +117,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // Verify the Reddit tab is still open
         try {
           await chrome.tabs.get(status.activeTabId);
-          showProgress(true);
+          showProgress(true, status.currentOperation?.isLeaving || joinProgress?.isLeaving);
           if (joinProgress) {
-            updateProgress(joinProgress.current, joinProgress.total, joinProgress.status);
+            updateProgress(
+              joinProgress.current, 
+              joinProgress.total, 
+              joinProgress.status, 
+              status.currentOperation?.isLeaving || joinProgress?.isLeaving
+            );
           }
         } catch (error) {
           // Tab doesn't exist anymore
@@ -126,10 +147,10 @@ document.addEventListener('DOMContentLoaded', function() {
     cleanupProgressListener();
     
     progressListener = function(msg) {
-      if (msg.action === 'joinProgress') {
+      if (msg.action === 'joinProgress' || msg.action === 'leaveProgress') {
         console.log('[Reddit Copycat] Progress update:', msg);
         showProgress(true);
-        updateProgress(msg.current, msg.total, msg.status);
+        updateProgress(msg.current, msg.total, msg.status, msg.action === 'leaveProgress');
         
         // If complete, schedule a final check
         if (msg.current === msg.total) {
@@ -580,6 +601,85 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  leaveSelectedBtn.addEventListener('click', async () => {
+    if (selectedSubreddits.size === 0) return;
+
+    try {
+      leaveSelectedBtn.disabled = true;
+      showProgress(true, true);  // Set isLeaving to true
+      setupProgressListener();
+      
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      
+      // Send leave request through background script
+      const response = await chrome.runtime.sendMessage({
+        action: 'startLeaving',
+        tabId: tab.id,
+        subreddits: Array.from(selectedSubreddits)
+      });
+      
+      if (response.success) {
+        let message = `Successfully started leaving ${selectedSubreddits.size} subreddits!`;
+        showStatus(message);
+        
+        // Clear selection since the process has started
+        selectedSubreddits.clear();
+        updateSelectedCount();
+      } else {
+        const errorMsg = response.error || 'Failed to start leaving process. Please make sure you are logged in to Reddit and refresh the page.';
+        showStatus(errorMsg, true);
+        showProgress(false);
+      }
+    } catch (error) {
+      console.error('[Reddit Copycat] Leave error:', error);
+      showStatus('Error: ' + (error.message || 'Unknown error occurred'), true);
+      showProgress(false);
+    } finally {
+      leaveSelectedBtn.disabled = false;
+    }
+  });
+
+  leaveSavedSubreddits.addEventListener('click', async () => {
+    try {
+      console.log('[Reddit Copycat] Leave all button clicked');
+      leaveSavedSubreddits.disabled = true;
+
+      if (!await isRedditTab()) {
+        showStatus('Please navigate to Reddit before using this feature.', true);
+        return;
+      }
+
+      await injectContentScriptIfNeeded();
+      showProgress(true, true);  // Set isLeaving to true
+      setupProgressListener();
+      
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      
+      // Send leave request through background script
+      const response = await chrome.runtime.sendMessage({
+        action: 'startLeaving',
+        tabId: tab.id
+      });
+      
+      if (response.success) {
+        showStatus('Successfully started leaving process!');
+      } else if (response.error === 'Operation in progress') {
+        showStatus('Please wait, another operation is in progress...', true);
+        showProgress(false);
+      } else {
+        const errorMsg = response.error || 'Failed to start leaving process. Please make sure you are logged in to Reddit and refresh the page.';
+        showStatus(errorMsg, true);
+        showProgress(false);
+      }
+    } catch (error) {
+      console.error('[Reddit Copycat] Leave error:', error);
+      showStatus('Error: ' + (error.message || 'Unknown error occurred'), true);
+      showProgress(false);
+    } finally {
+      leaveSavedSubreddits.disabled = false;
+    }
+  });
+
   // Update show button click handler
   showButton.addEventListener('click', () => {
     chrome.storage.local.get(['savedSubreddits'], async (result) => {
@@ -711,5 +811,11 @@ document.addEventListener('DOMContentLoaded', function() {
       saveButton.disabled = true;
       joinButton.disabled = true;
     }
+  });
+
+  // Add close button handler
+  const closeStatusBtn = document.querySelector('.close-status');
+  closeStatusBtn.addEventListener('click', () => {
+    showStatus('');
   });
 }); 

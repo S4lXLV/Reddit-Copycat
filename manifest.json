@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Reddit Copycat",
-  "version": "1.0",
+  "version": "1.5",
   "description": "Transfer your subreddit subscriptions between Reddit accounts",
   "permissions": [
     "storage",

@@ -63,6 +63,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.current === message.total) {
       joinInProgress = false;
       currentJoinOperation = null;
+      
+      // Show completion notification
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'images/icon128.png',
+        title: 'Reddit Copycat',
+        message: `Successfully joined ${message.current} subreddits!`
+      });
+      
       // Clear progress after a delay
       setTimeout(() => {
         chrome.storage.local.set({
@@ -89,6 +98,83 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then(result => sendResponse(result))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
+  }
+
+  else if (message.action === 'startLeaving') {
+    // Store the active tab ID
+    activeTabId = message.tabId;
+    
+    // Forward the leave request to content script
+    chrome.tabs.sendMessage(message.tabId, {
+      action: 'leaveSubreddits',
+      subreddits: message.subreddits
+    }).then(response => {
+      if (response.success) {
+        joinInProgress = true;
+        currentJoinOperation = {
+          tabId: message.tabId,
+          subreddits: message.subreddits,
+          isLeaving: true
+        };
+        // Initialize progress state
+        chrome.storage.local.set({
+          joinProgress: {
+            current: 0,
+            total: message.subreddits ? message.subreddits.length : 0,
+            status: 'Starting to leave...',
+            timestamp: Date.now(),
+            inProgress: true,
+            isLeaving: true
+          }
+        });
+      }
+      sendResponse(response);
+    }).catch(error => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  }
+  
+  else if (message.action === 'leaveProgress') {
+    // Store progress state
+    chrome.storage.local.set({
+      joinProgress: {
+        current: message.current,
+        total: message.total,
+        status: message.status,
+        timestamp: Date.now(),
+        inProgress: true,
+        isLeaving: true
+      }
+    });
+
+    // Forward progress updates to any open popup
+    chrome.runtime.sendMessage(message).catch(() => {
+      // Popup might be closed, ignore the error
+    });
+
+    // Check if leaving is complete
+    if (message.current === message.total) {
+      joinInProgress = false;
+      currentJoinOperation = null;
+      
+      // Show completion notification
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'images/icon128.png',
+        title: 'Reddit Copycat',
+        message: `Successfully left ${message.current} subreddits!`
+      });
+      
+      // Clear progress after a delay
+      setTimeout(() => {
+        chrome.storage.local.set({
+          joinProgress: {
+            inProgress: false
+          }
+        });
+      }, 2000);
+    }
   }
 });
 
