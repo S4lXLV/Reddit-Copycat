@@ -434,10 +434,9 @@
     }
 
     .selection-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
+      align-items: center;
       gap: 8px;
-      margin-top: 8px;
       width: 100%;
     }
 
@@ -479,6 +478,7 @@
       transition: all 0.2s ease;
       position: relative;
       overflow: hidden;
+      width: auto;
     }
 
     .tool-button::before {
@@ -552,7 +552,7 @@
       right: 0;
       bottom: 0;
       background: rgba(255, 255, 255, 0.95);
-      z-index: 1000;
+      z-index: 2000;
       padding: 20px;
       flex-direction: column;
       align-items: center;
@@ -600,7 +600,7 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      z-index: 2000;
+      z-index: 2001;
       margin: 0;
       padding: 20px 32px;
       border-radius: 12px;
@@ -650,7 +650,8 @@
       background: white;
       border: 1px solid var(--border-color);
       border-radius: 12px;
-      overflow: hidden;
+      position: relative;
+      z-index: 1;
     }
 
     .stats-bar {
@@ -701,14 +702,14 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      position: relative;
     }
 
     .selection-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border-color);
+      position: relative;
     }
 
     .selection-count {
@@ -749,14 +750,17 @@
 
     .selection-actions {
       display: flex;
-      flex-direction: column;
+      align-items: center;
       gap: 8px;
+      width: 100%;
+      position: relative;
     }
 
     .action-group {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
+      align-items: center;
       gap: 8px;
+      flex: 1;
     }
 
     .tool-button {
@@ -775,6 +779,7 @@
       transition: all 0.2s ease;
       position: relative;
       overflow: hidden;
+      width: auto;
     }
 
     .tool-button::before {
@@ -910,48 +915,103 @@
     .dropdown {
       position: relative;
       display: inline-block;
+      z-index: 10;
+    }
+
+    #bulkActionsBtn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    #bulkActionsBtn svg {
+      transition: transform 0.2s ease;
+    }
+
+    .dropdown.active #bulkActionsBtn {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+      background-color: var(--hover-overlay);
+    }
+
+    .dropdown.active #bulkActionsBtn svg {
+      transform: rotate(180deg);
     }
 
     .dropdown-content {
       display: none;
       position: absolute;
       right: 0;
+      top: calc(100% + 8px);
       background-color: white;
       min-width: 200px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
       border-radius: 8px;
       border: 1px solid var(--border-color);
-      z-index: 1000;
+      z-index: 10;
+      padding: 6px;
+      opacity: 0;
+      transform: translateY(-8px) scale(0.96);
+      transform-origin: top right;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    /* Dropdown arrow */
+    .dropdown-content::before,
+    .dropdown-content::after {
+      content: '';
+      position: absolute;
+      right: 10px;
+      top: -8px;
+      width: 0;
+      height: 0;
+    }
+
+    .dropdown-content::before {
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 8px solid var(--border-color);
+      top: -8px;
+    }
+
+    .dropdown-content::after {
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 7px solid white;
+      top: -7px;
     }
 
     .dropdown-content.show {
       display: block;
+      opacity: 1;
+      transform: translateY(0) scale(1);
     }
 
     .dropdown-content button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       width: 100%;
-      text-align: left;
+      padding: 8px 10px;
+      border: none;
       background: none;
       color: var(--text-color);
-      padding: 8px 16px;
-      border: none;
-      border-radius: 0;
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s ease;
       margin: 0;
-      font-size: 14px;
-    }
-
-    .dropdown-content button:first-child {
-      border-radius: 8px 8px 0 0;
-    }
-
-    .dropdown-content button:last-child {
-      border-radius: 0 0 8px 8px;
     }
 
     .dropdown-content button:hover {
-      background-color: #f8f9fa;
-      transform: none;
-      box-shadow: none;
+      background-color: var(--hover-overlay);
+      color: var(--primary-color);
+    }
+
+    .dropdown-content button:hover svg {
+      color: var(--primary-color);
     }
 
     .dropdown-content button.danger-action {
@@ -960,6 +1020,10 @@
 
     .dropdown-content button.danger-action:hover {
       background-color: #fff5f5;
+    }
+
+    .dropdown-content button.danger-action svg {
+      color: var(--error-color);
     }
 
     /* Modify the button group for the new layout */
@@ -1045,6 +1109,193 @@
     .content {
       padding-bottom: 80px;
     }
+
+    .settings-dropdown {
+      position: relative;
+      display: inline-block;
+      z-index: 10;
+    }
+
+    .settings-button {
+      background: none;
+      border: none;
+      padding: 4px;
+      cursor: pointer;
+      color: var(--secondary-text);
+      display: flex;
+      align-items: center;
+      width: 32px;
+      height: 32px;
+      margin: 0;
+      box-shadow: none;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      justify-content: center;
+    }
+
+    .settings-button:hover {
+      color: var(--primary-color);
+      background-color: var(--hover-overlay);
+    }
+
+    .settings-button svg {
+      transition: transform 0.2s ease;
+    }
+
+    .settings-dropdown.active .settings-button {
+      color: var(--primary-color);
+      background-color: var(--hover-overlay);
+    }
+
+    .settings-dropdown.active .settings-button svg {
+      transform: rotate(90deg);
+    }
+
+    .settings-content {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      background-color: white;
+      min-width: 200px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      z-index: 10;
+      padding: 6px;
+      opacity: 0;
+      transform: translateY(-8px) scale(0.96);
+      transform-origin: top right;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    /* Dropdown arrow */
+    .settings-content::before,
+    .settings-content::after {
+      content: '';
+      position: absolute;
+      right: 10px;
+      top: -8px;
+      width: 0;
+      height: 0;
+    }
+
+    .settings-content::before {
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 8px solid var(--border-color);
+      top: -8px;
+    }
+
+    .settings-content::after {
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 7px solid white;
+      top: -7px;
+    }
+
+    .settings-content.show {
+      display: block;
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .settings-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border-radius: 6px;
+      white-space: nowrap;
+      user-select: none;
+      color: var(--text-color);
+      font-size: 13px;
+    }
+
+    .settings-item:hover {
+      background-color: var(--hover-overlay);
+      color: var(--primary-color);
+    }
+
+    .settings-item input[type="checkbox"] {
+      margin: 0;
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary-color);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .settings-item:hover input[type="checkbox"] {
+      transform: scale(1.1);
+    }
+
+    /* Fixed widths for selection buttons */
+    #selectAllBtn {
+      min-width: 120px;
+      padding: 8px 10px;
+      justify-content: flex-start;
+    }
+
+    #selectUnjoinedBtn {
+      min-width: 165px;
+      padding: 8px 10px;
+      justify-content: flex-start;
+    }
+
+    .button-text {
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .action-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex: 1;
+      width: 100%;
+    }
+
+    .tool-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 10px;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-color);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tool-button svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    .settings-dropdown {
+      margin-left: 4px;
+      flex-shrink: 0;
+    }
+
+    .settings-button {
+      width: 30px;
+      height: 30px;
+      padding: 3px;
+    }
+
+    .settings-button svg {
+      width: 18px;
+      height: 18px;
+    }
   </style>
 </head>
 <body>
@@ -1124,12 +1375,6 @@
 
             <div class="selection-bar">
               <div class="selection-header">
-                <label class="filter-label">
-                  <input type="checkbox" id="filterUnjoined">
-                  <span>Show only unjoined</span>
-                </label>
-              </div>
-
               <div class="selection-actions">
                 <div class="action-group">
                   <button id="selectAllBtn" class="tool-button">
@@ -1146,6 +1391,21 @@
                     </svg>
                     <span class="button-text">Select Unjoined Only</span>
                   </button>
+                    <div class="settings-dropdown">
+                      <button type="button" class="settings-button" aria-label="Settings">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                      <div class="settings-content" role="menu">
+                        <label class="settings-item">
+                          <input type="checkbox" id="filterUnjoined">
+                          <span>Show only unjoined</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

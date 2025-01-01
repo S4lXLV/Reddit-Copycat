@@ -34,6 +34,73 @@ document.addEventListener('DOMContentLoaded', function() {
   // Tab handling for new UI
   const tabs = document.querySelectorAll('.tab');
   const tabContents = document.querySelectorAll('.tab-content');
+  
+  // Debug log for initial element check
+  console.log('[Reddit Copycat] Settings button:', document.querySelector('.settings-button'));
+  console.log('[Reddit Copycat] Settings content:', document.querySelector('.settings-content'));
+
+  // Close all dropdowns when clicking outside
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.settings-dropdown') && !event.target.closest('.dropdown')) {
+      // Close settings dropdown
+      document.querySelectorAll('.settings-content').forEach(content => {
+        content.classList.remove('show');
+      });
+      document.querySelectorAll('.settings-dropdown').forEach(dropdown => {
+        dropdown.classList.remove('active');
+      });
+      
+      // Close bulk actions dropdown
+      document.querySelectorAll('.dropdown-content').forEach(content => {
+        content.classList.remove('show');
+      });
+      document.querySelectorAll('.dropdown').forEach(dropdown => {
+        dropdown.classList.remove('active');
+      });
+    }
+  });
+
+  // Settings dropdown handler
+  const settingsButtons = document.querySelectorAll('.settings-button');
+  settingsButtons.forEach(button => {
+    button.addEventListener('click', (event) => {
+      console.log('[Reddit Copycat] Settings button clicked');
+      event.stopPropagation();
+      const dropdown = event.target.closest('.settings-dropdown');
+      const content = dropdown.querySelector('.settings-content');
+      
+      // Toggle active state
+      dropdown.classList.toggle('active');
+      
+      // If we're showing the dropdown, ensure smooth animation
+      if (!content.classList.contains('show')) {
+        content.style.display = 'block';
+        // Force a reflow
+        content.offsetHeight;
+        content.classList.add('show');
+      } else {
+        content.classList.remove('show');
+        // Wait for animation to finish before hiding
+        setTimeout(() => {
+          if (!content.classList.contains('show')) {
+            content.style.display = 'none';
+          }
+        }, 200);
+      }
+    });
+  });
+
+  // Handle filter checkbox
+  document.addEventListener('change', (event) => {
+    if (event.target.matches('#filterUnjoined')) {
+      console.log('[Reddit Copycat] Filter checkbox changed:', event.target.checked);
+      chrome.storage.local.get('savedSubreddits').then(savedSubs => {
+        if (savedSubs.savedSubreddits) {
+          updateSubredditList(savedSubs.savedSubreddits, event.target.checked);
+        }
+      });
+    }
+  });
 
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
@@ -430,21 +497,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Event Listeners
   if (selectAllBtn) {
-  selectAllBtn.addEventListener('click', () => {
-    const checkboxes = document.querySelectorAll('#subredditList input[type="checkbox"]');
+    selectAllBtn.addEventListener('click', () => {
+      const checkboxes = document.querySelectorAll('#subredditList input[type="checkbox"]');
       const totalCheckboxes = checkboxes.length;
+      const buttonText = selectAllBtn.querySelector('.button-text');
       
       // If all are selected, deselect all. Otherwise, select all.
       if (selectedSubreddits.size === totalCheckboxes) {
         selectedSubreddits.clear();
+        buttonText.textContent = 'Select All';
       } else {
-    checkboxes.forEach(checkbox => {
-      selectedSubreddits.add(checkbox.dataset.subreddit);
-    });
+        checkboxes.forEach(checkbox => {
+          selectedSubreddits.add(checkbox.dataset.subreddit);
+        });
+        buttonText.textContent = 'Deselect All';
       }
       
-    updateCheckboxes();
-  });
+      updateCheckboxes();
+    });
   }
 
   if (selectUnjoinedBtn) {
@@ -470,32 +540,29 @@ document.addEventListener('DOMContentLoaded', function() {
           joinedSubreddits = response.subreddits;
         }
 
-    const checkboxes = document.querySelectorAll('#subredditList input[type="checkbox"]');
+        const checkboxes = document.querySelectorAll('#subredditList input[type="checkbox"]');
         const unjoinedBoxes = Array.from(checkboxes).filter(checkbox => 
           !joinedSubreddits.includes(checkbox.dataset.subreddit)
         );
+        const buttonText = selectUnjoinedBtn.querySelector('.button-text');
         
         // If all unjoined are selected, deselect them. Otherwise, select all unjoined.
-        const allUnjoinedSelected = unjoinedBoxes.every(checkbox => selectedSubreddits.has(checkbox.dataset.subreddit));
+        const allUnjoinedSelected = unjoinedBoxes.every(checkbox => 
+          selectedSubreddits.has(checkbox.dataset.subreddit)
+        );
         
         if (allUnjoinedSelected) {
           // Deselect all unjoined
           unjoinedBoxes.forEach(checkbox => {
             selectedSubreddits.delete(checkbox.dataset.subreddit);
           });
-          const buttonSpan = selectUnjoinedBtn.querySelector('.button-text');
-          if (buttonSpan) {
-            buttonSpan.textContent = 'Select Unjoined Only';
-          }
+          buttonText.textContent = 'Select Unjoined Only';
         } else {
           // Select all unjoined
           unjoinedBoxes.forEach(checkbox => {
             selectedSubreddits.add(checkbox.dataset.subreddit);
           });
-          const buttonSpan = selectUnjoinedBtn.querySelector('.button-text');
-          if (buttonSpan) {
-            buttonSpan.textContent = 'Deselect Unjoined';
-          }
+          buttonText.textContent = 'Deselect Unjoined';
         }
 
         // Update UI
@@ -672,17 +739,32 @@ document.addEventListener('DOMContentLoaded', function() {
   const floatingLeaveBtn = document.getElementById('floatingLeaveBtn');
 
   // Toggle dropdown when clicking the bulk actions button
-  bulkActionsBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    dropdownContent.classList.toggle('show');
-  });
-
-  // Close dropdown when clicking outside
-  document.addEventListener('click', (e) => {
-    if (!e.target.matches('#bulkActionsBtn') && !e.target.closest('.dropdown-content')) {
-      dropdownContent.classList.remove('show');
-    }
-  });
+  if (bulkActionsBtn) {
+    bulkActionsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const dropdown = e.target.closest('.dropdown');
+      const content = dropdown.querySelector('.dropdown-content');
+      
+      // Toggle active state
+      dropdown.classList.toggle('active');
+      
+      // If we're showing the dropdown, ensure smooth animation
+      if (!content.classList.contains('show')) {
+        content.style.display = 'block';
+        // Force a reflow
+        content.offsetHeight;
+        content.classList.add('show');
+      } else {
+        content.classList.remove('show');
+        // Wait for animation to finish before hiding
+        setTimeout(() => {
+          if (!content.classList.contains('show')) {
+            content.style.display = 'none';
+          }
+        }, 200);
+      }
+    });
+  }
 
   // Handle join all action
   joinAllBtn.addEventListener('click', async () => {
