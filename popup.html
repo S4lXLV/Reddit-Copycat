@@ -13,19 +13,36 @@
       --background-color: #ffffff;
       --text-color: #1c1c1c;
       --secondary-text: #7c7c7c;
+      --hover-overlay: rgba(255, 69, 0, 0.08);
+      --active-overlay: rgba(255, 69, 0, 0.12);
+      --popup-height: 600px;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: var(--popup-height);
+      overflow: hidden;
     }
 
     body {
-      width: 350px;
-      padding: 16px;
+      width: 400px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      margin: 0;
       color: var(--text-color);
       background: var(--background-color);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      padding: 8px 16px;
+      background: var(--background-color);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
     }
 
     h2 {
-      margin: 0 0 16px 0;
+      margin: 0;
       font-size: 20px;
       color: var(--primary-color);
       display: flex;
@@ -33,31 +50,150 @@
       gap: 8px;
     }
 
-    .section {
-      margin-bottom: 16px;
-      padding: 12px;
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
       background: #f8f9fa;
-      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--secondary-text);
+      font-weight: 500;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tab::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--hover-overlay);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .tab:hover::before {
+      opacity: 1;
+    }
+
+    .tab.active {
+      color: var(--primary-color);
+      border-bottom-color: var(--primary-color);
+      background: white;
+    }
+
+    .tab.active::before {
+      background: var(--active-overlay);
+      opacity: 1;
+    }
+
+    .tab:hover:not(.active) {
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    .content {
+      flex: 1;
+      padding: 8px;
+      overflow-y: auto;
+    }
+
+    .tab-content {
+      height: auto;
+      overflow: visible;
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .action-card {
+      background: white;
       border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .action-card:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .action-card h3 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: var(--text-color);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .action-card h3::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 16px;
+      background: var(--primary-color);
+      border-radius: 2px;
     }
 
     button {
       width: 100%;
-      padding: 10px;
-      margin: 4px 0;
+      padding: 8px;
+      margin: 2px 0;
       background-color: var(--primary-color);
       color: white;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
       font-size: 14px;
       font-weight: 500;
       transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.1);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    button:hover:not(:disabled)::before {
+      opacity: 1;
     }
 
     button:hover:not(:disabled) {
-      background-color: var(--primary-hover);
       transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: none;
     }
 
     button:disabled {
@@ -68,16 +204,28 @@
 
     .button-group {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin: 8px 0;
+      grid-template-columns: 1fr;
+      gap: 4px;
+      margin: 4px 0;
     }
 
-    .action-buttons {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin: 8px 0;
+    .button-group button {
+      margin: 0;
+    }
+
+    .secondary-button {
+      background-color: #f8f9fa;
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+    }
+
+    .secondary-button::before {
+      background: var(--hover-overlay);
+    }
+
+    .secondary-button:hover:not(:disabled) {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
     }
 
     .danger-button {
@@ -88,139 +236,27 @@
       background-color: #d32f2f;
     }
 
-    .secondary-button {
-      background-color: var(--secondary-color);
+    .danger-button.secondary-button {
+      background-color: #fff5f5;
+      color: var(--error-color);
+      border-color: #ffebee;
     }
 
-    .secondary-button:hover:not(:disabled) {
-      background-color: #2d2d2e;
+    .danger-button.secondary-button::before {
+      background: rgba(244, 67, 54, 0.08);
     }
 
-    .small-button {
-      font-size: 12px;
-      padding: 6px 10px;
-    }
-
-    .status {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 2000;
-      margin: 0;
-      padding: 20px 32px;
-      border-radius: 12px;
-      display: none;
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.4;
-      text-align: center;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-      max-width: 90%;
-      min-width: 320px;
-      animation: fadeIn 0.3s ease;
-      backdrop-filter: blur(8px);
-      border-width: 2px;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translate(-50%, -60%);
-      }
-      to {
-        opacity: 1;
-        transform: translate(-50%, -50%);
-      }
-    }
-
-    .success {
-      background-color: rgba(76, 175, 80, 0.98);
-      color: white;
-      border: 2px solid #43a047;
-    }
-
-    .error {
-      background-color: rgba(244, 67, 54, 0.98);
-      color: white;
-      border: 2px solid #e53935;
-    }
-
-    .status.loading {
-      background-color: rgba(255, 152, 0, 0.98);
-      color: white;
-      border: 2px solid #fb8c00;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-    }
-
-    .status.loading::before {
-      content: '';
-      width: 24px;
-      height: 24px;
-      border: 3px solid white;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-
-    /* Add a semi-transparent overlay when status is shown */
-    .status-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.4);
-      z-index: 1999;
-      display: none;
-      animation: fadeOverlay 0.3s ease;
-    }
-
-    @keyframes fadeOverlay {
-      from {
-        opacity: 0;
-      }
-      to {
-        opacity: 1;
-      }
-    }
-
-    /* Add close button to status */
-    .status .close-status {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.25);
-      border: none;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 18px;
-      font-weight: bold;
-      padding: 0;
-      line-height: 1;
-    }
-
-    .status .close-status:hover {
-      background: rgba(255, 255, 255, 0.4);
+    .danger-button.secondary-button:hover:not(:disabled) {
+      background-color: #ffebee;
+      border-color: var(--error-color);
     }
 
     #subredditList {
+      margin-top: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
       max-height: 300px;
       overflow-y: auto;
-      margin-top: 8px;
-      display: none;
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      background: white;
     }
 
     #subredditList ul {
@@ -236,6 +272,7 @@
       justify-content: space-between;
       align-items: center;
       transition: background-color 0.2s;
+      background: white;
     }
 
     #subredditList li:hover {
@@ -246,15 +283,52 @@
       border-bottom: none;
     }
 
+    /* Custom scrollbar for better visibility */
+    #subredditList::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    #subredditList::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 0 12px 12px 0;
+    }
+
+    #subredditList::-webkit-scrollbar-thumb {
+      background: #c1c1c1;
+      border-radius: 4px;
+    }
+
+    #subredditList::-webkit-scrollbar-thumb:hover {
+      background: #a1a1a1;
+    }
+
     .sub-info {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
       flex: 1;
     }
 
     .sub-name {
       font-weight: 500;
+      color: var(--text-color);
+    }
+
+    .sub-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .checkbox-wrapper {
+      display: flex;
+      align-items: center;
+    }
+
+    .checkbox-wrapper input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--primary-color);
     }
 
     .status-badge {
@@ -274,19 +348,7 @@
       color: var(--error-color);
     }
 
-    .checkbox-wrapper {
-      display: flex;
-      align-items: center;
-    }
-
-    .checkbox-wrapper input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      cursor: pointer;
-      accent-color: var(--primary-color);
-    }
-
-    .filter-container, .selection-controls {
+    .filter-container {
       background-color: #f8f9fa;
       border-radius: 8px;
       padding: 12px;
@@ -304,11 +366,182 @@
     }
 
     .stats {
-      margin-top: 8px;
-      font-size: 12px;
-      color: var(--secondary-text);
+      font-size: 14px;
+      color: var(--text-color);
+      font-weight: 500;
+      padding: 8px 12px;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      display: inline-flex;
+      gap: 12px;
+    }
+
+    .stats-item {
       display: flex;
-      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stats-label {
+      color: var(--secondary-text);
+      font-weight: normal;
+    }
+
+    .selection-count {
+      font-size: 14px;
+      color: var(--text-color);
+      font-weight: 500;
+      padding: 8px 12px;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .selection-controls {
+      display: none;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+
+    .selection-controls h3 {
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .selection-controls h3::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 16px;
+      background: var(--primary-color);
+      border-radius: 2px;
+    }
+
+    .selection-info {
+      background: #f8f9fa;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+
+    .selection-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+      width: 100%;
+    }
+
+    #selectedActions {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    #selectedActions.visible {
+      display: grid !important;
+    }
+
+    .action-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 500;
+      width: 100%;
+    }
+
+    .tool-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-color);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tool-button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--hover-overlay);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .tool-button:hover:not(:disabled)::before {
+      opacity: 1;
+    }
+
+    .tool-button:hover:not(:disabled) {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .tool-button:hover:not(:disabled) svg {
+      color: var(--primary-color);
+    }
+
+    .small-button {
+      padding: 6px 12px !important;
+      font-size: 13px !important;
+      flex: 1;
+    }
+
+    .selection-buttons {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .action-button {
+      width: 100%;
+      justify-content: center;
+    }
+
+    #joinSelectedBtn, #leaveSelectedBtn {
+      display: flex !important;
+      opacity: 1;
+      visibility: visible;
+    }
+
+    #selectedActions[style*="display: none"] {
+      display: none !important;
+    }
+
+    #selectedActions[style*="display: grid"] {
+      display: grid !important;
+    }
+
+    .selected-count {
+      font-size: 14px;
+      color: var(--text-color);
+      font-weight: 500;
+      text-align: left;
     }
 
     .progress-container {
@@ -333,13 +566,6 @@
       color: #1c1c1c;
     }
 
-    .progress-note {
-      margin-top: 15px;
-      font-size: 14px;
-      color: #666;
-      font-style: italic;
-    }
-
     .progress-bar {
       width: 100%;
       height: 20px;
@@ -352,7 +578,7 @@
     .progress-fill {
       width: 0;
       height: 100%;
-      background-color: #ff4500;
+      background-color: var(--primary-color);
       transition: width 0.3s ease;
     }
 
@@ -362,185 +588,635 @@
       color: #1c1c1c;
     }
 
-    .controls {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
+    .progress-note {
+      margin-top: 15px;
+      font-size: 14px;
+      color: #666;
+      font-style: italic;
     }
 
-    .selected-count {
-      margin-top: 8px;
-      font-size: 12px;
-      color: var(--secondary-text);
+    .status {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2000;
+      margin: 0;
+      padding: 20px 32px;
+      border-radius: 12px;
+      display: none;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.4;
       text-align: center;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      max-width: 90%;
+      min-width: 320px;
+      animation: fadeIn 0.3s ease;
+      backdrop-filter: blur(8px);
     }
 
-    #importInput {
+    .success { background-color: rgba(76, 175, 80, 0.98); color: white; }
+    .error { background-color: rgba(244, 67, 54, 0.98); color: white; }
+    .loading { background-color: rgba(255, 152, 0, 0.98); color: white; }
+
+    .status-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 1999;
       display: none;
+      animation: fadeOverlay 0.3s ease;
     }
 
-    #joinSelectedBtn {
-      display: none;
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translate(-50%, -60%); }
+      to { opacity: 1; transform: translate(-50%, -50%); }
+    }
+
+    @keyframes fadeOverlay {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .list-view-container {
       margin-top: 8px;
-      background-color: var(--success-color);
     }
 
-    #joinSelectedBtn:hover:not(:disabled) {
-      background-color: #45a049;
+    .list-toolbar {
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
     }
 
-    /* Scrollbar styling */
-    ::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: #f1f1f1;
-      border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: #888;
-      border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: #555;
-    }
-
-    .social-links {
-      display: flex;
-      justify-content: center;
-      gap: 16px;
-      margin-bottom: 16px;
+    .stats-bar {
       padding: 8px;
       background: #f8f9fa;
-      border-radius: 8px;
-      border: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
     }
 
-    .social-links a {
+    .stats {
+      display: flex;
+      justify-content: center;
+    }
+
+    .stats-group {
       display: flex;
       align-items: center;
-      color: var(--secondary-text);
-      text-decoration: none;
-      font-size: 13px;
-      transition: color 0.2s;
+      gap: 12px;
+      padding: 8px 16px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }
 
-    .social-links a:hover {
+    .stats-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stats-label {
+      font-size: 13px;
+      color: var(--secondary-text);
+    }
+
+    .stats-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-color);
+    }
+
+    .stats-separator {
+      color: var(--border-color);
+      font-size: 12px;
+    }
+
+    .selection-bar {
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .selection-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .selection-count {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-color);
+    }
+
+    .selection-count svg {
       color: var(--primary-color);
     }
 
-    .social-links svg {
+    .filter-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-color);
+      cursor: pointer;
+      padding: 6px 12px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .filter-label:hover {
+      background: #f1f3f5;
+    }
+
+    .filter-label input[type="checkbox"] {
       width: 16px;
       height: 16px;
-      margin-right: 4px;
+      accent-color: var(--primary-color);
     }
 
-    .social-links img {
+    .selection-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .action-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .tool-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-color);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tool-button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--hover-overlay);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .tool-button:hover:not(:disabled)::before {
+      opacity: 1;
+    }
+
+    .tool-button:hover:not(:disabled) {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .tool-button:hover:not(:disabled) svg {
+      color: var(--primary-color);
+    }
+
+    .action-bar {
+      display: none;
+      padding: 16px;
+      background: #f8f9fa;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .action-bar.visible {
+      display: block;
+    }
+
+    .action-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      color: var(--text-color);
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .action-header svg {
+      color: var(--primary-color);
+    }
+
+    .action-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .action-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .action-button:hover {
+      transform: translateY(-1px);
+    }
+
+    .action-button svg {
+      flex-shrink: 0;
+    }
+
+    #subredditList {
+      margin-top: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    #subredditList ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    #subredditList li {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background-color 0.2s;
+      background: white;
+    }
+
+    #subredditList li:hover {
+      background-color: #f8f9fa;
+    }
+
+    #subredditList li:last-child {
+      border-bottom: none;
+    }
+
+    /* Custom scrollbar for better visibility */
+    #subredditList::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    #subredditList::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 0 12px 12px 0;
+    }
+
+    #subredditList::-webkit-scrollbar-thumb {
+      background: #c1c1c1;
+      border-radius: 4px;
+    }
+
+    #subredditList::-webkit-scrollbar-thumb:hover {
+      background: #a1a1a1;
+    }
+
+    /* Add dropdown styles */
+    .dropdown {
+      position: relative;
+      display: inline-block;
+    }
+
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      right: 0;
+      background-color: white;
+      min-width: 200px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      z-index: 1000;
+    }
+
+    .dropdown-content.show {
+      display: block;
+    }
+
+    .dropdown-content button {
+      width: 100%;
+      text-align: left;
+      background: none;
+      color: var(--text-color);
+      padding: 8px 16px;
+      border: none;
+      border-radius: 0;
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .dropdown-content button:first-child {
+      border-radius: 8px 8px 0 0;
+    }
+
+    .dropdown-content button:last-child {
+      border-radius: 0 0 8px 8px;
+    }
+
+    .dropdown-content button:hover {
+      background-color: #f8f9fa;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .dropdown-content button.danger-action {
+      color: var(--error-color);
+    }
+
+    .dropdown-content button.danger-action:hover {
+      background-color: #fff5f5;
+    }
+
+    /* Modify the button group for the new layout */
+    .actions-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .actions-row button {
+      margin: 0;
+    }
+
+    .actions-row .primary-action {
+      flex: 1;
+    }
+
+    /* Update existing styles */
+    .button-group {
+      margin: 0;
+    }
+
+    /* Floating action buttons styles */
+    .floating-actions {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100%);
+      background: white;
+      padding: 8px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: flex;
+      gap: 8px;
+      z-index: 1000;
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid var(--border-color);
+    }
+
+    .floating-actions.visible {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .floating-actions button {
+      margin: 0;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 140px;
+      justify-content: center;
+    }
+
+    .floating-actions button svg {
       width: 16px;
       height: 16px;
-      margin-right: 4px;
-      vertical-align: middle;
     }
 
-    .social-links a:hover img {
-      filter: brightness(0) saturate(100%) invert(37%) sepia(74%) saturate(7471%) hue-rotate(13deg) brightness(98%) contrast(107%);
+    .floating-actions button:hover {
+      transform: translateY(-2px);
     }
 
-    h2 img {
-      width: 24px;
-      height: 24px;
-      vertical-align: middle;
+    .floating-actions .action-count {
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--primary-color);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Update content padding to account for floating buttons */
+    .content {
+      padding-bottom: 80px;
     }
   </style>
 </head>
 <body>
-  <div class="social-links">
-    <a href="https://x.com/S4lXLV" target="_blank">
-      <img src="svg/x.svg" alt="X (Twitter)" width="16" height="16">
-      X
-    </a>
-    <a href="https://github.com/s4lxlv" target="_blank">
-      <img src="svg/github.svg" alt="GitHub" width="16" height="16">
-      GitHub
-    </a>
-    <a href="https://buymeacoffee.com/s4lxlv" target="_blank">
-      <img src="svg/coffee.svg" alt="Buy Me a Coffee" width="16" height="16">
-      Buy me a coffee
-    </a>
+  <div class="header">
+    <h2>Reddit Copycat</h2>
   </div>
 
-  <h2>
-    <img src="svg/plus.svg" alt="Plus" width="24" height="24">
-    Reddit Copycat
-  </h2>
+  <div class="tabs">
+    <button class="tab active" data-tab="manage">Manage Subreddits</button>
+    <button class="tab" data-tab="transfer">Import/Export</button>
+  </div>
 
-  <div class="section">
-    <button id="saveSubreddits">Save Current Subreddits</button>
-    <button id="showSubreddits">Show Saved Subreddits</button>
-    <div class="button-group">
-      <button id="exportSubreddits" class="secondary-button">Export List</button>
-      <button id="importSubreddits" class="secondary-button">Import List</button>
+  <div class="content">
+    <div class="tab-content active" id="manage-content">
+      <div class="action-card">
+        <h3>Save & View</h3>
+        <div class="actions-row">
+          <button id="saveSubredditsBtn" class="primary-action">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            Save Current Subreddits
+          </button>
+          <div class="dropdown">
+            <button id="bulkActionsBtn" class="secondary-button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+              Bulk Actions
+            </button>
+            <div class="dropdown-content">
+              <button id="joinAllBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <line x1="20" y1="8" x2="20" y2="14"></line>
+                  <line x1="23" y1="11" x2="17" y2="11"></line>
+                </svg>
+                Join All Saved
+              </button>
+              <button id="leaveAllBtn" class="danger-action">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <line x1="17" y1="11" x2="23" y2="11"></line>
+                </svg>
+                Leave All Saved
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="list-view-container">
+          <div class="list-toolbar">
+            <div class="stats-bar">
+              <div class="stats">
+                <div class="stats-group">
+                  <div class="stats-item">
+                    <span class="stats-label">Total:</span>
+                    <span class="stats-value">0</span>
+                  </div>
+                  <div class="stats-separator">•</div>
+                  <div class="stats-item">
+                    <span class="stats-label">Joined:</span>
+                    <span class="stats-value">0</span>
+                  </div>
+                  <div class="stats-separator">•</div>
+                  <div class="stats-item">
+                    <span class="stats-label">Not Joined:</span>
+                    <span class="stats-value">0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="selection-bar">
+              <div class="selection-header">
+                <label class="filter-label">
+                  <input type="checkbox" id="filterUnjoined">
+                  <span>Show only unjoined</span>
+                </label>
+              </div>
+
+              <div class="selection-actions">
+                <div class="action-group">
+                  <button id="selectAllBtn" class="tool-button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 3h18v18H3z"></path>
+                      <path d="M9 12l2 2 4-4"></path>
+                    </svg>
+                    <span class="button-text">Select All</span>
+                  </button>
+                  <button id="selectUnjoinedBtn" class="tool-button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 3h18v18H3z"></path>
+                      <path d="M12 12h6"></path>
+                    </svg>
+                    <span class="button-text">Select Unjoined Only</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="subredditList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="transfer-content">
+      <div class="action-card">
+        <h3>Transfer Subreddits</h3>
+        <div class="button-group">
+          <button id="exportListBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export Subreddit List
+          </button>
+          <button id="importListBtn" class="secondary-button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            Import Subreddit List
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <form id="importForm">
-    <input type="file" 
-           id="importInput" 
-           accept=".json" 
-           style="display: none;"
-           data-import-pending="false">
-  </form>
-
-  <div class="filter-container" style="display: none;">
-    <label>
-      <input type="checkbox" id="filterUnjoined">
-      Show only subreddits not joined
-    </label>
-    <div class="stats"></div>
-  </div>
-
-  <div class="selection-controls" style="display: none;">
-    <div class="controls">
-      <button id="selectAllBtn" class="secondary-button small-button">Select All</button>
-      <button id="deselectAllBtn" class="secondary-button small-button">Deselect All</button>
-      <button id="selectUnjoinedBtn" class="secondary-button small-button">Select Unjoined</button>
-    </div>
-    <div class="selected-count">Selected: 0 subreddits</div>
-    <div class="action-buttons">
-      <button id="joinSelectedBtn">Join Selected</button>
-      <button id="leaveSelectedBtn" class="danger-button">Leave Selected</button>
-    </div>
-  </div>
-
-  <div class="action-buttons">
-    <button id="joinSavedSubreddits" class="secondary-button">Join All Saved</button>
-    <button id="leaveSavedSubreddits" class="secondary-button danger-button">Leave All Saved</button>
-  </div>
-
-  <button id="joinSelectedBtn">Join Selected Subreddits</button>
-  <button id="joinSavedSubreddits" class="secondary-button">Join All Saved Subreddits</button>
-
-  <div id="status" class="status">
-    <button class="close-status" title="Dismiss">&times;</button>
-    <span class="status-message"></span>
-  </div>
-  <div class="status-overlay"></div>
-  
-  <div id="subredditList">
-    <ul></ul>
+  <div class="floating-actions">
+    <div class="action-count">0 Selected</div>
+    <button id="floatingJoinBtn" class="action-button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9" cy="7" r="4"></circle>
+        <line x1="20" y1="8" x2="20" y2="14"></line>
+        <line x1="23" y1="11" x2="17" y2="11"></line>
+      </svg>
+      Join Selected
+    </button>
+    <button id="floatingLeaveBtn" class="action-button danger-button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9" cy="7" r="4"></circle>
+        <line x1="17" y1="11" x2="23" y2="11"></line>
+      </svg>
+      Leave Selected
+    </button>
   </div>
 
   <div class="progress-container">
-    <div class="progress-info">Joining subreddits in progress...</div>
+    <div class="progress-info">Processing subreddits...</div>
     <div class="progress-bar">
       <div class="progress-fill"></div>
     </div>
     <div class="progress-text"></div>
     <div class="progress-note">You can close this window. The process will continue in the background.<br>Just keep Reddit open in your browser.</div>
   </div>
+
+  <form id="importForm">
+    <input type="file" id="importInput" accept=".json" style="display: none;" data-import-pending="false">
+  </form>
+
+  <div class="status-overlay"></div>
+  <div class="status"></div>
 
   <script src="popup.js"></script>
 </body>

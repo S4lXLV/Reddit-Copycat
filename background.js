@@ -170,7 +170,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       setTimeout(() => {
         chrome.storage.local.set({
           joinProgress: {
-            inProgress: false
+            inProgress: false,
+            isLeaving: true
           }
         });
       }, 2000);
