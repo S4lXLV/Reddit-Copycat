@@ -126,31 +126,54 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('.status-overlay').style.display = 'block';
     statusDiv.className = `status ${isError ? 'error' : isLoading ? 'loading' : 'success'}`;
     
-    if (duration > 0 && !isLoading) {
+    // Only set timeout for non-loading messages or if explicitly specified
+    if (duration > 0 && (!isLoading || message !== 'Fetching current subreddits...')) {
       setTimeout(() => {
-        statusDiv.style.display = 'none';
-        document.querySelector('.status-overlay').style.display = 'none';
+        // Only hide if this is still the current message
+        if (statusDiv.textContent === message) {
+          statusDiv.style.display = 'none';
+          document.querySelector('.status-overlay').style.display = 'none';
+        }
       }, duration);
     }
   }
 
   function showProgress(show = true, isLeaving = false) {
     if (progressContainer) {
-    progressContainer.style.display = show ? 'flex' : 'none';
-      if (show && progressInfo) {
-      progressInfo.textContent = isLeaving ? 'Leaving subreddits in progress...' : 'Joining subreddits in progress...';
+      if (show) {
+        // Reset all progress elements when showing
+        if (progressFill) progressFill.style.width = '0%';
+        if (progressText) progressText.textContent = 'Progress: 0/0 subreddits';
+        if (progressInfo) progressInfo.textContent = isLeaving ? 'Leaving subreddits in progress...' : 'Joining subreddits in progress...';
+        progressContainer.style.display = 'flex';
+      } else {
+        progressContainer.style.display = 'none';
       }
     }
   }
 
   function updateProgressInfo(current, total, status, isLeaving = false) {
     if (progressFill && progressText && progressInfo) {
-      const percentage = (current / total) * 100;
+      // Ensure we have valid numbers for current and total
+      const validCurrent = typeof current === 'number' ? current : 0;
+      const validTotal = typeof total === 'number' ? total : 0;
+      
+      const percentage = validTotal > 0 ? (validCurrent / validTotal) * 100 : 0;
       progressFill.style.width = `${percentage}%`;
-      progressText.textContent = status || `Progress: ${current}/${total} subreddits`;
-      progressInfo.textContent = current === total 
+      
+      // Format the progress text with validated numbers
+      const progressString = `${validCurrent}/${validTotal} subreddits`;
+      progressText.textContent = status || `Progress: ${progressString}`;
+      
+      // Update progress info with validated text
+      progressInfo.textContent = validCurrent === validTotal 
         ? (isLeaving ? 'Leaving complete!' : 'Joining complete!') 
         : (isLeaving ? 'Leaving subreddits in progress...' : 'Joining subreddits in progress...');
+      
+      // If we're complete, add completion message
+      if (validCurrent === validTotal && validTotal > 0) {
+        progressText.textContent = `Completed: ${progressString}`;
+      }
     }
   }
 
@@ -179,20 +202,22 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function updateProgress(current, total, status, isLeaving = false) {
-    updateProgressInfo(current, total, status, isLeaving);
-    console.log(`[Reddit Copycat] Progress: ${status || `${current}/${total}`}`);
+    // Validate the numbers before updating
+    const validCurrent = typeof current === 'number' ? current : 0;
+    const validTotal = typeof total === 'number' ? total : 0;
     
-    saveProgressState(current, total, status, isLeaving);
+    updateProgressInfo(validCurrent, validTotal, status, isLeaving);
+    console.log(`[Reddit Copycat] Progress: ${status || `${validCurrent}/${validTotal}`}`);
     
-    // Only handle completion in the completion listeners, not here
-    // This prevents the double-handling that causes blinking
-    if (current === total) {
-      // Just update the UI text to show completion
+    saveProgressState(validCurrent, validTotal, status, isLeaving);
+    
+    // Handle completion with validated numbers
+    if (validCurrent === validTotal && validTotal > 0) {
       if (progressInfo) {
         progressInfo.textContent = isLeaving ? 'Leaving complete!' : 'Joining complete!';
       }
       if (progressText) {
-        progressText.textContent = `Completed: ${current}/${total} subreddits`;
+        progressText.textContent = `Completed: ${validCurrent}/${validTotal} subreddits`;
       }
     }
   }
@@ -389,7 +414,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         joinedSubreddits = response.subreddits;
-        showStatus('', false, 0);
+        showStatus('', false, 0); // Clear the status only after we have the data
       }
 
       let subsToShow = savedSubs;
@@ -1039,7 +1064,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Create new completion listener
-    currentCompletionListener = function completionListener(changes) {
+    currentCompletionListener = async function completionListener(changes) {
       if (changes.joinProgress && changes.joinProgress.newValue && !changes.joinProgress.newValue.inProgress) {
         // Remove the listener to avoid memory leaks
         chrome.storage.onChanged.removeListener(completionListener);
@@ -1048,16 +1073,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // Hide progress window
         showProgress(false);
         
-        // Force refresh joined subreddits
+        // Force refresh joined subreddits with proper status handling
         joinedSubreddits = [];
         
-        // Update the subreddit list
-        chrome.storage.local.get('savedSubreddits', async (result) => {
-          if (result.savedSubreddits) {
-            currentSubreddits = result.savedSubreddits;
-            await updateSubredditList(result.savedSubreddits, document.getElementById('filterUnjoined')?.checked || false);
-          }
-        });
+        // Update the subreddit list with proper status handling
+        const result = await chrome.storage.local.get('savedSubreddits');
+        if (result.savedSubreddits) {
+          currentSubreddits = result.savedSubreddits;
+          await updateSubredditList(result.savedSubreddits, document.getElementById('filterUnjoined')?.checked || false);
+        }
       }
     };
 
